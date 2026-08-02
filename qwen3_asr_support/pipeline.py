@@ -110,7 +110,6 @@ class AlignedASR:
         # Segment wav exceeding 3 minutes
         if len(wav) / WAV_SAMPLE_RATE >= 180 and self._chunk: 
             wav_list = process_vad(wav, self._worker_vad_model, segment_threshold_s=self._vad_segment_threshold)
-            print(wav_list)
         else:
             wav_list = [(0, len(wav), wav)]
 

@@ -120,13 +120,14 @@ class AlignedASR:
         if label is None and isinstance(audio_url, Path):
             label = audio_url.stem
 
-        transcript = ""
+        transcript = []
         fragments = []
         language = []
         for c in chunks:
-            transcript += c.transcript
+            transcript.append(c.transcript)
             fragments.extend(c.fragments)
             if not c.language in language:
                 language.append( c.language)
- 
+
+        transcript = " ".join(transcript)
         return AlignedResult(language=language,transcript=transcript, label= label, fragments=fragments, chunks=chunks)

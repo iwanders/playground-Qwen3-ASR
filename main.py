@@ -2,12 +2,11 @@
 
 import common  # noqa: F401, I001
 
-import argparse
-import json
+import argparse 
 import logging
 from pathlib import Path
 
-from pipeline import AlignedASR
+from qwen3_asr_support import AlignedASR
 
 def run_asr_aligned(args):
     pipeline = AlignedASR(asr_model_id=args.asr_model, aligner_model_id=args.aligner_model, local_files_only=args.local_files_only)

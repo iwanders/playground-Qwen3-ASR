@@ -1,5 +1,6 @@
  
 import os
+import sys
 from pathlib import Path
 
 """
@@ -11,3 +12,5 @@ if envfile.is_file():
     for l in envfile.open().readlines():
         k,v = l.strip().split("=")
         os.environ[k] = v
+
+sys.path.insert(0, str(Path(__file__).parent))

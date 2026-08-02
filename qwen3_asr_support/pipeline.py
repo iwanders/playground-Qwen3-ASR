@@ -1,24 +1,14 @@
 from pathlib import Path
 
 import torch
-from pydantic import BaseModel
 from transformers import (
     AutoModelForMultimodalLM,
     AutoModelForTokenClassification,
     AutoProcessor,
 )
 
+from .model import AlignedFragment, AlignedResult
 
-class AlignedFragment(BaseModel):
-    text: str
-    start_time: float
-    end_time: float
-
-class AlignedResult(BaseModel):
-    label: str | None
-    transcript: str
-    language: str
-    fragments: list[AlignedFragment]
 
 class AlignedASR:
     def __init__(self, asr_model_id: str, aligner_model_id: str, local_files_only: bool=True):

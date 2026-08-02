@@ -1,16 +1,8 @@
 #!/usr/bin/env python3
 
-from pathlib import Path
-import os
+import common  # noqa: F401, I001
 
-envfile = Path(__file__).parent / ".env"
-if envfile.is_file():
-    for l in envfile.open().readlines():
-        k,v = l.strip().split("=")
-        os.environ[k] = v
-
-
-from transformers import AutoProcessor, AutoModelForMultimodalLM  # noqa: I001
+from transformers import AutoModelForMultimodalLM, AutoProcessor  # noqa: I001
 
 model_id = "Qwen/Qwen3-ASR-0.6B-hf"
 processor = AutoProcessor.from_pretrained(model_id)

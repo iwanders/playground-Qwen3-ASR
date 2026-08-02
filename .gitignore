@@ -1,3 +1,4 @@
 *.priv.*
 .venv
 .env
+__pycache__

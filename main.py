@@ -9,7 +9,7 @@ from pathlib import Path
 from qwen3_asr_support.pipeline import AlignedASR
 
 def run_asr_aligned(args):
-    pipeline = AlignedASR(asr_model_id=args.asr_model, aligner_model_id=args.aligner_model, local_files_only=args.local_files_only)
+    pipeline = AlignedASR(asr_model_id=args.asr_model, aligner_model_id=args.aligner_model, local_files_only=args.local_files_only, shuffle_memory=args.reduce_memory)
     for f in args.files:
         r =  pipeline.process( f)
         print(r)
@@ -37,6 +37,7 @@ if __name__ == "__main__":
     aligner_model_id = "Qwen/Qwen3-ForcedAligner-0.6B-hf"
     parser_run_asr_aligned = subparsers.add_parser("asr_aligned", help="run asr with alignment")
     parser_run_asr_aligned.add_argument("--allow-download", dest="local_files_only", default=True, action="store_false")
+    parser_run_asr_aligned.add_argument("--reduce-memory", default=False, action="store_true")
     parser_run_asr_aligned.add_argument("--asr-model", type=str, help="The asr model to use %(default)s", default=asr_model_id)
     parser_run_asr_aligned.add_argument("--aligner-model", type=str, help="The aligner model to use %(default)s", default=aligner_model_id)
     parser_run_asr_aligned.add_argument("files",

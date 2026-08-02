@@ -6,7 +6,7 @@ import argparse
 import logging
 from pathlib import Path
 
-from qwen3_asr_support import AlignedASR
+from qwen3_asr_support.pipeline import AlignedASR
 
 def run_asr_aligned(args):
     pipeline = AlignedASR(asr_model_id=args.asr_model, aligner_model_id=args.aligner_model, local_files_only=args.local_files_only)

@@ -6,8 +6,14 @@ class AlignedFragment(BaseModel):
     start_time: float
     end_time: float
 
-class AlignedResult(BaseModel):
-    label: str | None
+class AlignedChunk(BaseModel):
     transcript: str
     language: str
     fragments: list[AlignedFragment]
+
+class AlignedResult(BaseModel):
+    label: str | None
+    transcript: str
+    language: list[str]
+    fragments: list[AlignedFragment]
+    chunks: list[AlignedChunk]

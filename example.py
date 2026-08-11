@@ -10,12 +10,35 @@ model = AutoModelForMultimodalLM.from_pretrained(model_id, device_map="auto")
 print(f"Model loaded on {model.device} with dtype {model.dtype}")
 
 inputs = processor.apply_transcription_request(
-    audio="https://huggingface.co/datasets/bezzam/audio_samples/resolve/main/librispeech_mr_quilter.wav",
+    # audio="https://huggingface.co/datasets/bezzam/audio_samples/resolve/main/librispeech_mr_quilter.wav",
+    audio="../librispeech_mr_quilter.wav",
 ).to(model.device, model.dtype)
+print(inputs)
+print(f'input_ids shape: {inputs["input_ids"].shape}')
+inputs_entries_before = inputs["input_ids"].size(1)
+print(f'input_features shape: {inputs["input_features"].shape}')
+output_dict = model.generate(**inputs, max_new_tokens=256,output_scores=True, return_dict_in_generate=True)
+print(f"output_dict: {output_dict}")
+output_ids = output_dict["sequences"]
+print(f"sequences shape: {output_ids.shape}")
+output_entries_after = output_ids.size(1)
 
-output_ids = model.generate(**inputs, max_new_tokens=256)
+VOCAB_SIZE = 151936
+
+scores = output_dict["scores"]
+print(f"scores shape tuple of; {len(scores)}")
+for i, s in enumerate(scores):
+    #print(f"shape of score tuple {i}; {s.shape}")
+    assert s.numel() == VOCAB_SIZE
+
+generated_outputs = output_entries_after - inputs_entries_before
+print(f"generated_outputs; {generated_outputs}")
+assert generated_outputs == len(scores)
+
+    
 generated_ids = output_ids[:, inputs["input_ids"].shape[1]:]
-
+print(output_ids)
+print(generated_ids)
 # Raw output includes language tag and <asr_text> marker
 raw = processor.decode(generated_ids)[0]
 print(f"Raw: {raw}")

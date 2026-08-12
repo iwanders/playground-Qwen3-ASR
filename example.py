@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 
 import common  # noqa: F401, I001
+import types
 
 from transformers import AutoModelForMultimodalLM, AutoProcessor  # noqa: I001
 
+
+# https://huggingface.co/docs/transformers/v5.14.0/en/model_doc/qwen3_asr#transformers.Qwen3ASRProcessor
 model_id = "Qwen/Qwen3-ASR-0.6B-hf"
 processor = AutoProcessor.from_pretrained(model_id)
 model = AutoModelForMultimodalLM.from_pretrained(model_id, device_map="auto")
@@ -11,7 +14,8 @@ print(f"Model loaded on {model.device} with dtype {model.dtype}")
 
 inputs = processor.apply_transcription_request(
     # audio="https://huggingface.co/datasets/bezzam/audio_samples/resolve/main/librispeech_mr_quilter.wav",
-    audio="../librispeech_mr_quilter.wav",
+    # audio="../librispeech_mr_quilter.wav",
+    audio="../asr_en.wav",
 ).to(model.device, model.dtype)
 print(inputs)
 print(f'input_ids shape: {inputs["input_ids"].shape}')
@@ -37,14 +41,37 @@ assert generated_outputs == len(scores)
 
     
 generated_ids = output_ids[:, inputs["input_ids"].shape[1]:]
-print(output_ids)
-print(generated_ids)
+print("output_ids:", output_ids)
+print("generated:", generated_ids)
 # Raw output includes language tag and <asr_text> marker
 raw = processor.decode(generated_ids)[0]
 print(f"Raw: {raw}")
 
+
 # Parsed output: dict with "language" and "transcription"
-parsed = processor.decode(generated_ids, return_format="parsed")[0]
+def monkeypatched_decode(self,  *args,return_format="raw",  **kwargs):
+     #valid_formats = ["raw", "parsed", "transcription_only"]
+    #if return_format not in valid_formats:
+    #    raise ValueError(f"return_format must be one of {valid_formats}.")
+    if return_format != "raw":
+        kwargs["skip_special_tokens"] = True
+
+    ids = args[0].tolist()[0]
+    print("ids:", ids)
+    # ids_to_tokens = self.tokenizer.convert_tokens_to_string(ids )
+    segments = [self.tokenizer.decode([i]) for i in ids]
+    print("segments:", segments)
+    
+    #self.convert_tokens_to_string(self.convert_ids_to_tokens(token_ids))
+    decoded = self.tokenizer.decode(*args, **kwargs)
+    if return_format == "parsed":
+        decoded = self.parse_output(decoded)
+    elif return_format == "transcription_only":
+        decoded = self.extract_transcription(decoded)
+    return decoded 
+processor.decode = types.MethodType(monkeypatched_decode, processor)
+
+parsed = processor.decode(generated_ids, return_offsets_mapping=True, return_format =None) 
 print(f"Parsed: {parsed}")
 
 # Extract only the transcription text

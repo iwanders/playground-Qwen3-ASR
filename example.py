@@ -45,15 +45,20 @@ assert generated_outputs == len(output_scores)
 @dataclass
 class TokenAlternatives:
     indices: list[int]
-    scores: list[float] 
+    scores: list[float]
+    scores_softmax: list[float]
 
 highest_score_index: list[TokenAlternatives] = []
 print(f"scores shape tuple of; {len(output_scores)}")
 for i, s in enumerate(output_scores):
     #print(f"shape of score tuple {i}; {s.shape}")
     assert s.numel() == VOCAB_SIZE
-    scores, indices = s.topk(3)
-    r = TokenAlternatives(scores=scores.tolist()[0], indices=indices.tolist()[0])
+    TOPK_COUNT = 5
+    scores, indices = s.topk(TOPK_COUNT)
+    print(s)
+    print(s.squeeze().softmax(0))
+    scores_softmax, indices_softmax = s.squeeze().softmax(0).topk(TOPK_COUNT)
+    r = TokenAlternatives(scores=scores.tolist()[0], indices=indices.tolist()[0], scores_softmax=scores_softmax.tolist() )
     highest_score_index.append(r)
     
 
@@ -109,10 +114,10 @@ print(f"Transcription: {transcription}")
 # Retrieve the alternatives:
 print(generated_ids)
 for a in highest_score_index:
-    for score, index in zip(a.scores, a.indices):
+    for score, index, softmaxed in zip(a.scores, a.indices, a.scores_softmax):
         print(f"{score} with {index}")
         string = processor.tokenizer.decode([ index]) 
-        print(f"     {score:2.2f}: {string}")
+        print(f"     {score:2.2f}: {string}  (smax: {softmaxed:2.5f}")
     print()
 
 """

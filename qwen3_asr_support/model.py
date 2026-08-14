@@ -17,3 +17,17 @@ class AlignedResult(BaseModel):
     language: list[str]
     fragments: list[AlignedFragment]
     chunks: list[AlignedChunk]
+
+class TokenScored(BaseModel):
+    text: str
+    token: int
+    score: float
+
+
+class TokenAlternatives(BaseModel):
+    alternatives: list[TokenScored]
+
+class AsrChunkScored(BaseModel):
+    transcript: str
+    language: str
+    segments: list[TokenAlternatives]

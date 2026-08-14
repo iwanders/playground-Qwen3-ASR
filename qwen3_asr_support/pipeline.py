@@ -10,7 +10,7 @@ from transformers import (
     AutoProcessor,
 )
 
-from .model import AlignedChunk, AlignedFragment, AlignedResult
+from .model import AlignedChunk, AlignedFragment, AlignedResult, TokenScored, AsrChunkScored, TokenAlternatives
 
 
 def model_to(model, device):
@@ -131,3 +131,39 @@ class AlignedASR:
 
         transcript = " ".join(transcript)
         return AlignedResult(language=language,transcript=transcript, label= label, fragments=fragments, chunks=chunks)
+
+
+
+    def asr_chunk_scores(self, audio_url, topk=3) -> AsrChunkScored:
+        wav = load_audio(str(audio_url))
+        wav_list = [wav]
+        if self._shuffle_memory:
+            self.asr_model = model_to(self.asr_model, self._good_device)
+            
+         
+        inputs = self.asr_processor.apply_transcription_request(audio=wav_list)
+        inputs = inputs.to(self.asr_model.device, self.asr_model.dtype)
+        with torch.inference_mode(): 
+            output_dict = self.asr_model.generate(**inputs, max_new_tokens=256,output_scores=True, return_dict_in_generate=True)
+        
+        output_ids = output_dict["sequences"]
+        output_scores = output_dict["scores"]
+        generated_ids = output_ids[:, inputs["input_ids"].shape[1]:]
+        parsed = self.asr_processor.decode(generated_ids, return_format="parsed")[0]
+        transcript = parsed["transcription"]
+        language = parsed["language"] or "English"
+
+   
+        segments: list[TokenAlternatives] = []
+        for i, s in enumerate(output_scores):
+            alternatives : list[TokenScored] = []
+            scores, indices = s.topk(topk)
+            decoded = [self.asr_processor.tokenizer.decode([a]) for a in indices.tolist()[0]]
+            
+            for token, score, text in zip(indices.tolist()[0], scores.tolist()[0], decoded):
+                
+                alternatives.append(TokenScored(text=text, score=score, token=token))
+                
+            segments.append(TokenAlternatives(alternatives=alternatives))
+            
+        return AsrChunkScored(segments=segments, transcript=transcript, language=language)

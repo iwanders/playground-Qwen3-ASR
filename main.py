@@ -20,6 +20,19 @@ def run_asr_aligned(args):
             as_json = r.model_dump_json(indent=2)
             f.write(as_json)
 
+def run_asr_scores(args):
+    pipeline = AlignedASR(asr_model_id=args.asr_model, aligner_model_id=args.aligner_model, local_files_only=args.local_files_only, shuffle_memory=args.reduce_memory)
+    for f in args.files:
+        r =  pipeline.asr_chunk_scores( f)
+        print(r)
+        output_dir = args.output_dir if args.output_dir else f.parent
+        output_filename = f.stem
+        output_dest = output_dir / f"{output_filename}.json"
+        with open(output_dest, "w") as f:
+            as_json = r.model_dump_json(indent=2)
+            f.write(as_json)
+        
+
 if __name__ == "__main__":
     # Create a parser with some subcommands
     parser = argparse.ArgumentParser(description="asr thingy")
@@ -51,6 +64,20 @@ if __name__ == "__main__":
     parser_run_asr_aligned.set_defaults(func=run_asr_aligned)
     
     
+    parser_run_asr_scores = subparsers.add_parser("asr_scored", help="run asr with scores")
+    parser_run_asr_scores.add_argument("--allow-download", dest="local_files_only", default=True, action="store_false")
+    parser_run_asr_scores.add_argument("--reduce-memory", default=False, action="store_true")
+    parser_run_asr_scores.add_argument("--asr-model", type=str, help="The asr model to use %(default)s", default=asr_model_id)
+    parser_run_asr_scores.add_argument("--aligner-model", type=str, help="The aligner model to use %(default)s", default=aligner_model_id)
+    parser_run_asr_scores.add_argument("files",
+        nargs='+',
+         type=Path,
+         help="Paths to operate on, retrieve https://huggingface.co/datasets/bezzam/audio_samples/resolve/main/librispeech_mr_quilter.wav as an example",
+    )
+    
+    parser_run_asr_scores.add_argument("--output-dir",  type=Path,  default=None, help="Output dir to write json files to, defaults to directory of input file." )
+    
+    parser_run_asr_scores.set_defaults(func=run_asr_scores)
  
     args = parser.parse_args()
 

@@ -10,6 +10,9 @@
         <p id="speech-state">Listening...</p>
         <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/@ricky0123/vad/dist/index.browser.js"></script>
+        <div id="rawlog">
+
+        </div>
         <script>
             let reconnectTimer = null;
             let retryCount = 0;
@@ -53,6 +56,20 @@
                     reconnectTimer = setTimeout(() => {
                         openSocket();
                     }, delay);
+                };
+
+                socket.onmessage = (m) => {
+                    const container = document.getElementById('rawlog');
+
+                    // 2. Create the <pre> element
+                    const preBlock = document.createElement('pre');
+
+                    // 3. Set the text content
+                    preBlock.textContent = m.data;
+
+                    // 4. Add the <pre> block to the container
+                    container.appendChild(preBlock);
+
                 };
             }
 

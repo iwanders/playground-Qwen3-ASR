@@ -95,12 +95,91 @@ async def handle(request):
     #text = "Hello, " + name
     return web.Response(text=INDEX_HTML, content_type='text/html')
 
+
+from torchcodec.decoders import AudioDecoder
+import asyncio
+
+import io
+import threading
+
+class UpdatableStream(io.RawIOBase):
+    def __init__(self):
+        self._buffer = bytearray()
+        self._condition = threading.Condition()
+        self._closed = False
+
+    def readable(self):
+        return True
+
+    def writable(self):
+        return True
+
+    def readinto(self, b):
+        """Reads data into the provided bytearray buffer."""
+        with self._condition:
+            # Wait until there is data to read or the stream is closed
+            while not self._buffer and not self._closed:
+                self._condition.wait()
+            
+            if not self._buffer and self._closed:
+                return 0  # EOF reached
+
+            # Extract data matching the requested read size
+            bytes_to_read = min(len(b), len(self._buffer))
+            b[:bytes_to_read] = self._buffer[:bytes_to_read]
+            del self._buffer[:bytes_to_read]
+            return bytes_to_read
+
+    def write(self, b):
+        """Accepts updates and appends new data to the stream."""
+        with self._condition:
+            if self._closed:
+                raise ValueError("I/O operation on closed file.")
+            self._buffer.extend(b)
+            self._condition.notify_all()
+            return len(b)
+
+    def close(self):
+        """Signals to the reader that no more updates will be sent."""
+        with self._condition:
+            self._closed = True
+            self._condition.notify_all()
+        super().close()
+
+class AsyncAudioDecoderWrapper:
+    def __init__(self):
+        self.feeder = None
+        self.decoder = None
+    def setup(self):
+        self.feeder = UpdatableStream()
+        self.decoder = AudioDecoder(self.feeder)
+        
+import time 
+def blocking_io_task(audio_wrapper, stop_signal):
+    print( "Task doing things started (sync)...")
+    audio_wrapper.setup()
+    print( "Going into service")
+    while not stop_signal.is_set():
+        happened = stop_signal.wait(timeout=0.1)
+        if happened:
+            break 
+        print("Task operating")
+    print("Exiting task")
+    return  "Result from task"
+
+
+
+    
 async def websocket_handler(request):
 
     ws = web.WebSocketResponse()
     await ws.prepare(request)
+    audio_handler = AsyncAudioDecoderWrapper()
+    stop_signal = threading.Event()
+    bg_task = asyncio.create_task(asyncio.to_thread(blocking_io_task, audio_handler, stop_signal))
+  
 
-    async for msg in ws:
+    async for msg in ws: 
         if msg.type == aiohttp.WSMsgType.TEXT:
             if msg.data == 'close':
                 await ws.close()
@@ -110,9 +189,14 @@ async def websocket_handler(request):
             print('ws connection closed with exception %s' %
                   ws.exception())
         elif msg.type == aiohttp.WSMsgType.BINARY:
-            waveform, sample_rate = torchaudio.load(msg.data)
-            print(f"Got waveform that was {len(waveform)} long at {sample_rate} Hz.")
-
+            #waveform, sample_rate = torchaudio.load(msg.data)
+            #audio_handler.write(msg.data) 
+            #for waveform in decoder: 
+            #    print(f"Got waveform that was {len(waveform)} long at  Hz.")
+            print(f"Got packed of {len(msg.data)} long")
+    # 3. Explicitly gather or await the result when you actually need it
+    stop_signal.set()
+    result = await bg_task
     print('websocket connection closed')
 
     return ws

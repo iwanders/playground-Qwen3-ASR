@@ -4,6 +4,24 @@
 import threading
 from queue import Queue
 import asyncio
+from pydantic import BaseModel, ConfigDict
+from enum import Enum
+from typing import Any
+from .pipeline import AlignedASR
+
+# Maybe I can just wrap the entire thing in https://docs.python.org/3/library/concurrent.futures.html#future-objects ?
+# 
+
+class TaskType(Enum):
+    ASR_CHUNK = 1
+    ASR_CHUNK_SCORED = 2
+    
+
+class AsyncTask(BaseModel):
+    type: TaskType
+    payload: Any
+    model_config = ConfigDict(extra='allow')
+
 
 # https://docs.python.org/3/library/asyncio-queue.html
 # asyncio queues are designed to be similar to classes of the queue module. Although asyncio queues are not thread-safe, they are designed to be used specifically in async/await code.
@@ -45,22 +63,32 @@ class AsyncToThreadSPSC:
     def issue_task_done(self):
         self.queue.task_done()
 
+
+
 class PipelineWorker:
-    def __init__(self, loop: asyncio.AbstractEventLoop):
+    def __init__(self, loop: asyncio.AbstractEventLoop, pipeline: AlignedASR):
         self.async_to_thread = AsyncToThreadSPSC(loop)
         self.thread_to_async = ThreadToAsyncSPSC(loop)
         self._thread = threading.Thread(target=self._run, daemon=True)
+        self._pipeline: AlignedASR = pipeline
         self._thread.start()
 
     def _run(self):
         while True:
-            item = self.async_to_thread.consume()
+            item: AsyncTask | None = self.async_to_thread.consume()
             if item is None:
                 self.async_to_thread.issue_task_done()
                 break
-            
+            assert item
             # Do work
-            result = self.process(item)
+            #result = self.process(item)
+            match item.type:
+                case TaskType.ASR_CHUNK:
+                    item = self._pipeline.asr_chunk(**item.payload)
+                case TaskType.ASR_CHUNK_SCORED:
+                    item = await self._pipeline.push(item)
+             
+         
             
             self.thread_to_async.produce(result)
             self.async_to_thread.issue_task_done()

@@ -3,6 +3,8 @@
 
 import threading
 from queue import Queue
+import queue
+from concurrent.futures import Future as ConcurrentFuture
 import asyncio
 from pydantic import BaseModel, ConfigDict
 from enum import Enum
@@ -14,7 +16,7 @@ from .pipeline import AlignedASR
 
 class TaskType(Enum):
     ASR_CHUNK = 1
-    ASR_CHUNK_SCORED = 2
+    ASR_CHUNK_SCORES = 2
     
 
 class AsyncTask(BaseModel):
@@ -23,89 +25,67 @@ class AsyncTask(BaseModel):
     model_config = ConfigDict(extra='allow')
 
 
-# https://docs.python.org/3/library/asyncio-queue.html
-# asyncio queues are designed to be similar to classes of the queue module. Although asyncio queues are not thread-safe, they are designed to be used specifically in async/await code.
-# Ehh, so... what non blocking primitive do we have to bridge between threads and async?
+from abc import ABC,abstractmethod
+class WorkerAbstraction(ABC):
+    @abstractmethod
+    def do_work(self, task: Any) -> Any:
+        pass
 
-# The LLM generated these two marvels :|
-class ThreadToAsyncSPSC:
-    def __init__(self, loop: asyncio.AbstractEventLoop):
-        self.loop = loop
-        self.queue = asyncio.Queue()
+class PipelineAbstraction(WorkerAbstraction):
+    def __init__(self, pipeline: AlignedASR):
+        self._pipeline: AlignedASR = pipeline
+    def do_work(self, task: AsyncTask) -> Any:
+        match task.type:
+            case TaskType.ASR_CHUNK:
+                return self._pipeline.asr_chunk(**task.payload)
+            case TaskType.ASR_CHUNK_SCORES:
+                return self._pipeline.asr_chunk_scores(task)
 
-    # Called from background OS thread
-    def produce(self, item):
-        print(f"pushing {item} onto queue");
-        # Safely schedules queue insertion on the event loop
-        self.loop.call_soon_threadsafe(self.queue.put_nowait, item)
-
-    # Called from asyncio coroutine
-    async def consume(self):
-        res =  await self.queue.get()
-        print(f"consumed {res} from queue")
+class TestAbstraction(WorkerAbstraction):
+    def __init__(self):
+        pass
+    def do_work(self, task: int) -> int:
+        print(f"do work accepting {task}");
+        import time
+        time.sleep(1)
+        res = task * 2
+        print(f"do work completed calculation of {task} result is  {res}");
         return res
-
-class AsyncToThreadSPSC:
-    def __init__(self, loop: asyncio.AbstractEventLoop):
-        self.loop = loop
-        self.queue = asyncio.Queue()
-
-    # Called from asyncio coroutine
-    async def produce(self, item):
-        await self.queue.put(item)
-
-    # Called from background OS thread
-    def consume(self):
-        # Schedules queue.get() and blocks the thread until the future resolves
-        future = asyncio.run_coroutine_threadsafe(self.queue.get(), self.loop)
-        return future.result()
-        
-    def issue_task_done(self):
-        self.queue.task_done()
-
+         
 
 
 class PipelineWorker:
-    def __init__(self, loop: asyncio.AbstractEventLoop, pipeline: AlignedASR):
-        self.async_to_thread = AsyncToThreadSPSC(loop)
-        self.thread_to_async = ThreadToAsyncSPSC(loop)
+    def __init__(self, work_abstraction: WorkerAbstraction):
+        self._work_queue = Queue() 
         self._thread = threading.Thread(target=self._run, daemon=True)
-        self._pipeline: AlignedASR = pipeline
+        self._worker: WorkerAbstraction = work_abstraction
         self._thread.start()
 
     def _run(self):
         while True:
-            item: AsyncTask | None = self.async_to_thread.consume()
-            if item is None:
-                self.async_to_thread.issue_task_done()
-                break
-            assert item
-            # Do work
-            #result = self.process(item)
-            match item.type:
-                case TaskType.ASR_CHUNK:
-                    item = self._pipeline.asr_chunk(**item.payload)
-                case TaskType.ASR_CHUNK_SCORED:
-                    item = await self._pipeline.push(item)
-             
-         
-            
-            self.thread_to_async.produce(result)
-            self.async_to_thread.issue_task_done()
-
-    def process(self, item):
-        print("doing work")
-        return item * 2  # Example work
+            try:
+                item, future = self._work_queue.get()
+                try:
+                    r = self._worker.do_work(item)
+                    future.set_result(r)
+                except Exception as e:
+                    future.set_exception(e)
+                finally:
+                    self._work_queue.task_done()
+                    
+            except queue.ShutDown as e:
+                break;
 
     def close(self):
-        asyncio.run(self.async_to_thread.produce(None))
+        self._work_queue.shutdown(immediate=True)
         self._thread.join()
+        
+    def enqueue(self, item) -> ConcurrentFuture:
+        f = ConcurrentFuture()
+        self._work_queue.put((item, f))
+        return f
+        
 
-    async def push(self, item):
-        await self.async_to_thread.produce(item)
-
-    async def retrieve(self):
-        return await self.thread_to_async.consume()
         
 if __name__ == "__main__":
     print("test")
@@ -116,15 +96,20 @@ if __name__ == "__main__":
     # 2. Set it as the current loop for the thread
     asyncio.set_event_loop(loop)
 
-    pipeline = PipelineWorker(loop)
+    work_abstraction = TestAbstraction()
+    pipeline = PipelineWorker(work_abstraction )
 
-        
+
+    def async_to_sync_bridge(v: int) -> int:
+        f = pipeline.enqueue(v)
+        return f.result()
+    
     async def main():
-        for i in range(3):
-            await pipeline.push(i)
-            await asyncio.sleep(1)
-            res = await pipeline.retrieve()
-            print(res)
+        for i in range(3): 
+            result = await loop.run_in_executor(None, async_to_sync_bridge, i)
+            await asyncio.sleep(0.1)
+            print('Calculated result:', result)
+ 
         print("Manually managed loop!")
     
     

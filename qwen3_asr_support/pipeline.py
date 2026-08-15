@@ -21,7 +21,7 @@ def model_to(model, device):
     torch.cuda.empty_cache()
     return res
     
-
+ASR_START_TOKEN = 151704
 
 class AlignedASR:
     def __init__(self, asr_model_id: str, aligner_model_id: str, local_files_only: bool=True, shuffle_memory: bool = False, chunk: bool = True):
@@ -55,11 +55,9 @@ class AlignedASR:
             
 
     def asr_chunk(self, audio_fragment, time_shift: float = 0.0) -> AlignedChunk:
-    
         if self._shuffle_memory:
             self.asr_model = model_to(self.asr_model, self._good_device)
-            
-        
+
         # Step 1: Transcribe
         inputs = self.asr_processor.apply_transcription_request(audio=audio_fragment)
         inputs = inputs.to(self.asr_model.device, self.asr_model.dtype)
@@ -98,6 +96,7 @@ class AlignedASR:
 
         if self._shuffle_memory: 
             self.aligner_model = model_to(self.aligner_model, "cpu") 
+
 
         return AlignedChunk(fragments=[AlignedFragment(text = a["text"], start_time=a["start_time"]+time_shift, end_time=a["end_time"] + time_shift) for a in timestamps], language=language, transcript=transcript)
 
@@ -155,15 +154,20 @@ class AlignedASR:
 
    
         segments: list[TokenAlternatives] = []
+        ranges = []
+        position_this_far = None
         for i, s in enumerate(output_scores):
             alternatives : list[TokenScored] = []
             scores, indices = s.topk(topk)
             decoded = [self.asr_processor.tokenizer.decode([a]) for a in indices.tolist()[0]]
             
             for token, score, text in zip(indices.tolist()[0], scores.tolist()[0], decoded):
-                
                 alternatives.append(TokenScored(text=text, score=score, token=token))
                 
             segments.append(TokenAlternatives(alternatives=alternatives))
-            
-        return AsrChunkScored(segments=segments, transcript=transcript, language=language)
+            if position_this_far is not None:
+                ranges.append((position_this_far, position_this_far + len(alternatives[0].text)))
+                position_this_far += len(alternatives[0].text)
+            elif indices[0].tolist()[0]  == ASR_START_TOKEN:
+                position_this_far = 0
+        return AsrChunkScored(segments=segments, transcript=transcript, language=language,ranges=ranges)

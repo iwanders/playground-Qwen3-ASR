@@ -82,7 +82,20 @@ def run_server(args):
     work_abstraction = PipelineAbstraction(pipeline)
     pipeline_worker = PipelineWorker(work_abstraction)
     app["pipeline"] = pipeline_worker
-    web.run_app(app, port=args.port)
+
+    ssl_context = None
+    if args.ssl:
+        import ssl
+        ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        
+        # Load your certificate and private key files
+        ssl_context.load_cert_chain(certfile=THIS_PATH/"certs"/'cert.pem', keyfile=THIS_PATH/"certs"/'key.pem')
+
+    port = args.port
+    if ssl_context is not None:
+        port = args.ssl_port
+
+    web.run_app(app, port=port, ssl_context=ssl_context)
 
 
 if __name__ == '__main__':
@@ -105,6 +118,8 @@ if __name__ == '__main__':
     parser_run_asr_aligned.add_argument("--reduce-memory", default=False, action="store_true")
     parser_run_asr_aligned.add_argument("--asr-model", type=str, help="The asr model to use %(default)s", default=asr_model_id)
     parser_run_asr_aligned.add_argument("--aligner-model", type=str, help="The aligner model to use %(default)s", default=aligner_model_id)
+    parser_run_asr_aligned.add_argument("--ssl",  default=False, action="store_true", help="use ssl, for ios to use mic")
+    parser_run_asr_aligned.add_argument("--ssl-port",  type=int,  default=8001, help="Port to bind to when using ssl" )
     
     parser_run_asr_aligned.add_argument("--port",  type=int,  default=8000, help="Port to bind to." )
     

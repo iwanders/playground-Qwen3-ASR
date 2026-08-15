@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Stream voicethings</title>
+    </head>
+
+    <body>
+        <p id="status">Initializing Silero VAD...</p>
+        <p id="speech-state">Listening...</p>
+        <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@ricky0123/vad/dist/index.browser.js"></script>
+        <script>
+            let reconnectTimer = null;
+            let retryCount = 0;
+            let socket  = null;
+            const MAX_RETRY_DELAY = 1000; // Cap the delay at 10 seconds
+            // index.html
+            async function openSocket() {
+                if (reconnectTimer) {
+                    clearTimeout(reconnectTimer);
+                    reconnectTimer = null;
+                }
+                // 1. Connect to the WebSocket server
+                //const socket = new WebSocket('ws://localhost:8080');
+                const wsProtocol =
+                    location.protocol === "https:" ? "wss://" : "ws://";
+                const wsUrl = wsProtocol + location.host + "/ws";
+                socket = new WebSocket(wsUrl);
+
+                socket.onopen = async () => {
+                    console.log(
+                        "Connected to server, starting audio capture...",
+                    );
+                };
+
+                socket.onclose = () => {
+                    console.log("WebSocket closed.");
+                    socket = null;
+
+                    // 2. Calculate exponential backoff delay (e.g., 1s, 2s, 4s, 8s...)
+                    const delay = Math.min(
+                        100 * Math.pow(2, retryCount),
+                        MAX_RETRY_DELAY,
+                    );
+                    retryCount++;
+
+                    console.log(
+                        `Attempting reconnection in ${delay / 1000} seconds...`,
+                    );
+
+                    // 3. Start the timer to try again
+                    reconnectTimer = setTimeout(() => {
+                        openSocket();
+                    }, delay);
+                };
+            }
+
+            openSocket();
+
+            async function float32ToBase64(float32Array) {
+                // 1. Create a Uint8Array view over the Float32Array's exact byte memory area
+                const bytes = new Uint8Array(
+                    float32Array.buffer,
+                    float32Array.byteOffset,
+                    float32Array.byteLength
+                );
+
+                // 2. Wrap it into a Blob
+                const blob = new Blob([bytes], { type: 'application/octet-stream' });
+
+                // 3. Use FileReader to generate a Data URL
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        // Extract the pure base64 string from the data URL schema
+                        const base64 = reader.result.split(',')[1];
+                        resolve(base64);
+                    };
+                    reader.readAsDataURL(blob);
+                });
+            }
+            async function initVAD() {
+                try {
+                    // Initialize the VAD instance utilizing the microphone
+                    const myvad = await vad.MicVAD.new({
+                        onSpeechStart: () => {
+                            document.getElementById("speech-state").innerText = "🎙️ Speaking detected!";
+                            console.log("Speech started");
+                        },
+                        onSpeechEnd: (audio) => {
+                            document.getElementById("speech-state").innerText = "🤫 Silence...";
+                            console.log("Speech ended. Audio data chunk size:", audio.length);
+                            // 'audio' contains a Float32Array of the spoken segment
+                            // let payloadblob = float32ToBase64(audio);
+                            // WTH is the bitrate?!?
+                            const byteArray = new Uint8Array(
+                                audio.buffer,
+                                audio.byteOffset,
+                                audio.byteLength
+                            );
+
+                            if (socket !== null) {
+                                socket.send(byteArray);
+                            }
+                        }
+                    });
+
+                    // Start listening to the stream
+                    await myvad.start();
+                    document.getElementById("status").innerText = "VAD Ready and Listening!";
+                } catch (err) {
+                    document.getElementById("status").innerText = "Error: " + err.message;
+                    console.error(err);
+                }
+            }
+
+            // Trigger after the window loads
+            window.addEventListener("load", initVAD);
+        </script>
+    </body>
+</html>

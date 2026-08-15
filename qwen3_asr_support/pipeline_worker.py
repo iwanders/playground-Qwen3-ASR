@@ -11,8 +11,7 @@ from enum import Enum
 from typing import Any
 from .pipeline import AlignedASR
 
-# Maybe I can just wrap the entire thing in https://docs.python.org/3/library/concurrent.futures.html#future-objects ?
-# 
+
 
 class TaskType(Enum):
     ASR_CHUNK = 1

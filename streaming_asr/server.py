@@ -65,6 +65,7 @@ async def websocket_handler(request):
                     r = str(e)
                 return r
             result = await loop.run_in_executor(None, pipeline_entry, task)
+            print(f"  result was: {result}")
             await ws.send_str(result)
             # This is a float32 array.
             # Cool, convert this into ehm, the actual samples, and dispatch to the pipeline?

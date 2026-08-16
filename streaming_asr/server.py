@@ -76,7 +76,9 @@ async def websocket_handler(request):
 
 app = web.Application()
 app.add_routes([web.get('/', handle),
-                web.get('/{name}', handle), web.get('/ws', websocket_handler)])
+                web.get('/{name}', handle),
+                web.get('/ws', websocket_handler)])
+app.router.add_static('/assets', path=THIS_PATH / "assets", show_index=True)
 
 def run_server(args):
     pipeline = AlignedASR(asr_model_id=args.asr_model, aligner_model_id=args.aligner_model, local_files_only=args.local_files_only, shuffle_memory=args.reduce_memory)

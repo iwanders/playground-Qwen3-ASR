@@ -38,7 +38,7 @@ class PipelineAbstraction(WorkerAbstraction):
             case TaskType.ASR_CHUNK:
                 return self._pipeline.asr_chunk(**task.payload)
             case TaskType.ASR_CHUNK_SCORES:
-                return self._pipeline.asr_chunk_scores(task)
+                return self._pipeline.asr_chunk_scores(**task.payload)
 
 class TestAbstraction(WorkerAbstraction):
     def __init__(self):

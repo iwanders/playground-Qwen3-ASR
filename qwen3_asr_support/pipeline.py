@@ -133,9 +133,14 @@ class AlignedASR:
 
 
 
-    def asr_chunk_scores(self, audio_url, topk=3) -> AsrChunkScored:
-        wav = load_audio(str(audio_url))
-        wav_list = [wav]
+    def asr_chunk_scores(self, audio_fragment, topk=3) -> AsrChunkScored:
+        if isinstance(audio_fragment, str):
+            wav = load_audio(str(audio_fragment))
+            wav_list = [wav]
+        else:
+            print(audio_fragment)
+            wav_list = audio_fragment
+        
         if self._shuffle_memory:
             self.asr_model = model_to(self.asr_model, self._good_device)
             

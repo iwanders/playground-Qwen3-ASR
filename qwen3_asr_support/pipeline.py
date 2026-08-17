@@ -9,6 +9,7 @@ from transformers import (
     AutoModelForTokenClassification,
     AutoProcessor,
 )
+import numpy as np
 
 from .model import AlignedChunk, AlignedFragment, AlignedResult, TokenScored, AsrChunkScored, TokenAlternatives
 
@@ -22,6 +23,16 @@ def model_to(model, device):
     return res
     
 ASR_START_TOKEN = 151704
+
+
+def fragment_to_waveform(a):
+    if isinstance(a, str) or isinstance(a, Path):
+        return load_audio(str(a))
+    elif isinstance(a, np.ndarray):
+        return a
+    else:
+        raise ValueError(f"Unsupported type for audio {type(a)}")
+        
 
 class AlignedASR:
     def __init__(self, asr_model_id: str, aligner_model_id: str, local_files_only: bool=True, shuffle_memory: bool = False, chunk: bool = True):
@@ -104,7 +115,7 @@ class AlignedASR:
     def process(self, audio_url, label: str|None  = None) -> AlignedResult:
         #audio_url = "https://huggingface.co/datasets/bezzam/audio_samples/resolve/main/librispeech_mr_quilter.wav"
 
-        wav = load_audio(str(audio_url))
+        wav = fragment_to_waveform(audio_url)
     
         # Segment wav exceeding 3 minutes
         if len(wav) / WAV_SAMPLE_RATE >= 180 and self._chunk: 
@@ -134,13 +145,11 @@ class AlignedASR:
 
 
     def asr_chunk_scores(self, audio_fragment, topk=3) -> AsrChunkScored:
-        if isinstance(audio_fragment, str):
-            wav = load_audio(str(audio_fragment))
-            wav_list = [wav]
+        if isinstance(audio_fragment, list):
+            wav_list = [fragment_to_waveform(z) for z in audio_fragment]
         else:
-            print(audio_fragment)
-            wav_list = audio_fragment
-        
+            wav_list = [fragment_to_waveform(audio_fragment)]
+
         if self._shuffle_memory:
             self.asr_model = model_to(self.asr_model, self._good_device)
             

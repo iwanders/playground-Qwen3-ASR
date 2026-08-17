@@ -22,8 +22,13 @@ def run_asr_aligned(args):
 
 def run_asr_scores(args):
     pipeline = AlignedASR(asr_model_id=args.asr_model, aligner_model_id=args.aligner_model, local_files_only=args.local_files_only, shuffle_memory=args.reduce_memory)
+
+    requested_tokens = None
+    if args.requested_tokens is not None:
+        requested_tokens = [int(a.strip()) for a in args.requested_tokens.split(",") if a.strip()]
+    
     for f in args.files:
-        r =  pipeline.asr_chunk_scores( f)
+        r =  pipeline.asr_chunk_scores( f, requested_tokens=requested_tokens)
         print(r)
         output_dir = args.output_dir if args.output_dir else f.parent
         output_filename = f.stem
@@ -74,6 +79,7 @@ if __name__ == "__main__":
          type=Path,
          help="Paths to operate on, retrieve https://huggingface.co/datasets/bezzam/audio_samples/resolve/main/librispeech_mr_quilter.wav as an example",
     )
+    parser_run_asr_scores.add_argument("--requested-tokens", type=str, help="score against these tokens, comma separated integers", default=None);
     
     parser_run_asr_scores.add_argument("--output-dir",  type=Path,  default=None, help="Output dir to write json files to, defaults to directory of input file." )
     

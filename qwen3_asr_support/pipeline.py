@@ -144,7 +144,7 @@ class AlignedASR:
 
 
 
-    def asr_chunk_scores(self, audio_fragment, topk=3) -> AsrChunkScored:
+    def asr_chunk_scores(self, audio_fragment, topk=3, requested_tokens : list[int] | None = None) -> AsrChunkScored:
         if isinstance(audio_fragment, list):
             wav_list = [fragment_to_waveform(z) for z in audio_fragment]
         else:
@@ -170,11 +170,23 @@ class AlignedASR:
         segments: list[TokenAlternatives] = []
         ranges = []
         position_this_far = None
+        requested_score : list[TokenScored] | None = None if requested_tokens is None else []
         for i, s in enumerate(output_scores):
             alternatives : list[TokenScored] = []
             scores, indices = s.topk(topk)
             decoded = [self.asr_processor.tokenizer.decode([a]) for a in indices.tolist()[0]]
-            
+
+            if requested_score is not None and requested_tokens is not None:
+                if i < len(requested_tokens):
+                    # Append the score.
+                    req_token = requested_tokens[i]
+                    req_token_text = self.asr_processor.tokenizer.decode([req_token]) 
+                    req_token_score = s[0, req_token]
+                    requested_score.append(TokenScored(text=req_token_text, token=req_token, score=req_token_score))
+                else:
+                    requested_score.append(TokenScored(text="", token=0, score=0.0))
+                    
+
             for token, score, text in zip(indices.tolist()[0], scores.tolist()[0], decoded):
                 alternatives.append(TokenScored(text=text, score=score, token=token))
                 
@@ -184,4 +196,5 @@ class AlignedASR:
                 position_this_far += len(alternatives[0].text)
             elif indices[0].tolist()[0]  == ASR_START_TOKEN:
                 position_this_far = 0
-        return AsrChunkScored(segments=segments, transcript=transcript, language=language,ranges=ranges)
+        # requested_score
+        return AsrChunkScored(segments=segments, transcript=transcript, language=language,ranges=ranges, requested_score=requested_score)

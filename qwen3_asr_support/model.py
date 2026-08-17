@@ -31,5 +31,9 @@ class AsrChunkScored(BaseModel):
     transcript: str
     language: str
     segments: list[TokenAlternatives]
+    
     # Ranges for each segment.
     ranges: list[tuple[int,int]]
+
+    # Score for the requested token sequence.
+    requested_score: list[TokenScored] | None = None

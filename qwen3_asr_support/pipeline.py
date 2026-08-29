@@ -198,3 +198,8 @@ class AlignedASR:
                 position_this_far = 0
         # requested_score
         return AsrChunkScored(segments=segments, transcript=transcript, language=language,ranges=ranges, requested_score=requested_score)
+
+    def tokenizer_dictionary(self) -> list[str]:
+        VOCAB_DICT_SIZE = 151936
+        indices = range(VOCAB_DICT_SIZE + 1)
+        return [self.asr_processor.tokenizer.decode([a]) for a in indices]

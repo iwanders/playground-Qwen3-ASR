@@ -5,6 +5,7 @@ import common  # noqa: F401, I001
 import argparse 
 import logging
 from pathlib import Path
+import json
 
 from qwen3_asr_support.pipeline import AlignedASR
 
@@ -36,6 +37,17 @@ def run_asr_scores(args):
         with open(output_dest, "w") as f:
             as_json = r.model_dump_json(indent=2)
             f.write(as_json)
+        
+
+def run_dump_tokenizer_dict(args):
+    pipeline = AlignedASR(asr_model_id=args.asr_model, aligner_model_id=args.aligner_model, local_files_only=args.local_files_only, shuffle_memory=args.reduce_memory)
+
+    dictionary = pipeline.tokenizer_dictionary()
+
+    output_dir = args.output_dir
+    output_dest = output_dir / "tokenizer_dict.json"
+    with open(output_dest, "w") as f:
+        json.dump(dictionary, f, ensure_ascii=False, indent=1)
         
 
 if __name__ == "__main__":
@@ -84,6 +96,16 @@ if __name__ == "__main__":
     parser_run_asr_scores.add_argument("--output-dir",  type=Path,  default=None, help="Output dir to write json files to, defaults to directory of input file." )
     
     parser_run_asr_scores.set_defaults(func=run_asr_scores)
+
+
+    parser_run_dump_tokenizer_dict = subparsers.add_parser("dump_tokenizer", help="Dump tokenizer dictionary")
+    parser_run_dump_tokenizer_dict.add_argument("--allow-download", dest="local_files_only", default=True, action="store_false")
+    parser_run_dump_tokenizer_dict.add_argument("--reduce-memory", default=False, action="store_true")
+    parser_run_dump_tokenizer_dict.add_argument("--asr-model", type=str, help="The asr model to use %(default)s", default=asr_model_id)
+    parser_run_dump_tokenizer_dict.add_argument("--aligner-model", type=str, help="The aligner model to use %(default)s", default=aligner_model_id)
+    parser_run_dump_tokenizer_dict.add_argument("--output-dir",  type=Path,  default=Path("/tmp/"), help="Output dir to write json files to, defaults to directory of input file." )
+    parser_run_dump_tokenizer_dict.set_defaults(func=run_dump_tokenizer_dict)
+    
  
     args = parser.parse_args()
 

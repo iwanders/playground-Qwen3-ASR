@@ -12,7 +12,7 @@ from qwen3_asr_support.pipeline import AlignedASR
 def run_asr_aligned(args):
     pipeline = AlignedASR(asr_model_id=args.asr_model, aligner_model_id=args.aligner_model, local_files_only=args.local_files_only, shuffle_memory=args.reduce_memory)
     for f in args.files:
-        r =  pipeline.process( f)
+        r =  pipeline.process(f, language=args.language)
         print(r)
         output_dir = args.output_dir if args.output_dir else f.parent
         output_filename = f.stem
@@ -29,7 +29,7 @@ def run_asr_scores(args):
         requested_tokens = [int(a.strip()) for a in args.requested_tokens.split(",") if a.strip()]
     
     for f in args.files:
-        r =  pipeline.asr_chunk_scores( f, requested_tokens=requested_tokens)
+        r =  pipeline.asr_chunk_scores( f, requested_tokens=requested_tokens, language=args.language)
         print(r)
         output_dir = args.output_dir if args.output_dir else f.parent
         output_filename = f.stem
@@ -48,6 +48,13 @@ def run_dump_tokenizer_dict(args):
     output_dest = output_dir / "tokenizer_dict.json"
     with open(output_dest, "w") as f:
         json.dump(dictionary, f, ensure_ascii=False, indent=1)
+
+
+    if args.text:
+        exp = pipeline.expected_tokens(text=args.text, language=args.text_language)
+        for ind in exp:
+            print(f"{ind}: {dictionary[ind]}")
+            
         
 
 if __name__ == "__main__":
@@ -76,6 +83,7 @@ if __name__ == "__main__":
          help="Paths to operate on, retrieve https://huggingface.co/datasets/bezzam/audio_samples/resolve/main/librispeech_mr_quilter.wav as an example",
     )
     
+    parser_run_asr_aligned.add_argument("--language", type=str, default=None, help="Language to use for asr %(default)s")
     parser_run_asr_aligned.add_argument("--output-dir",  type=Path,  default=None, help="Output dir to write json files to, defaults to directory of input file." )
     
     parser_run_asr_aligned.set_defaults(func=run_asr_aligned)
@@ -86,6 +94,7 @@ if __name__ == "__main__":
     parser_run_asr_scores.add_argument("--reduce-memory", default=False, action="store_true")
     parser_run_asr_scores.add_argument("--asr-model", type=str, help="The asr model to use %(default)s", default=asr_model_id)
     parser_run_asr_scores.add_argument("--aligner-model", type=str, help="The aligner model to use %(default)s", default=aligner_model_id)
+    parser_run_asr_scores.add_argument("--language", type=str, default=None, help="Language to use for asr %(default)s")
     parser_run_asr_scores.add_argument("files",
         nargs='+',
          type=Path,
@@ -104,6 +113,8 @@ if __name__ == "__main__":
     parser_run_dump_tokenizer_dict.add_argument("--asr-model", type=str, help="The asr model to use %(default)s", default=asr_model_id)
     parser_run_dump_tokenizer_dict.add_argument("--aligner-model", type=str, help="The aligner model to use %(default)s", default=aligner_model_id)
     parser_run_dump_tokenizer_dict.add_argument("--output-dir",  type=Path,  default=Path("/tmp/"), help="Output dir to write json files to, defaults to directory of input file." )
+    parser_run_dump_tokenizer_dict.add_argument("--text-language",  type=str,  default=None, help="Create tokens for this text." )
+    parser_run_dump_tokenizer_dict.add_argument("--text",  type=str,  default=None, help="Create tokens for this text." )
     parser_run_dump_tokenizer_dict.set_defaults(func=run_dump_tokenizer_dict)
     
  

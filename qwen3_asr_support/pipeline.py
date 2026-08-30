@@ -22,6 +22,7 @@ def model_to(model, device):
     torch.cuda.empty_cache()
     return res
     
+ASR_LANGUAGE_TOKEN = 11528 # without preceding space, with preceding space is 4128.
 ASR_START_TOKEN = 151704
 
 
@@ -36,6 +37,7 @@ def fragment_to_waveform(a):
 
 class AlignedASR:
     def __init__(self, asr_model_id: str, aligner_model_id: str, local_files_only: bool=True, shuffle_memory: bool = False, chunk: bool = True):
+        self._tokenizer_dictionary : list[str] | None = None
         self.asr_processor = AutoProcessor.from_pretrained(asr_model_id, local_files_only=local_files_only)
         self.asr_model = AutoModelForMultimodalLM.from_pretrained(asr_model_id, device_map="auto", local_files_only=local_files_only)
         
@@ -65,12 +67,12 @@ class AlignedASR:
             #wav_list = process_vad(wav, self._worker_vad_model, segment_threshold_s=_vad_segment_threshold)
             
 
-    def asr_chunk(self, audio_fragment, time_shift: float = 0.0) -> AlignedChunk:
+    def asr_chunk(self, audio_fragment, time_shift: float = 0.0,  language: str | None=None) -> AlignedChunk:
         if self._shuffle_memory:
             self.asr_model = model_to(self.asr_model, self._good_device)
 
         # Step 1: Transcribe
-        inputs = self.asr_processor.apply_transcription_request(audio=audio_fragment)
+        inputs = self.asr_processor.apply_transcription_request(audio=audio_fragment, language=language)
         inputs = inputs.to(self.asr_model.device, self.asr_model.dtype)
         with torch.inference_mode():
             output_ids = self.asr_model.generate(**inputs, max_new_tokens=256)
@@ -112,7 +114,7 @@ class AlignedASR:
         return AlignedChunk(fragments=[AlignedFragment(text = a["text"], start_time=a["start_time"]+time_shift, end_time=a["end_time"] + time_shift) for a in timestamps], language=language, transcript=transcript)
 
 
-    def process(self, audio_url, label: str|None  = None) -> AlignedResult:
+    def process(self, audio_url, label: str|None  = None,  language: str | None=None) -> AlignedResult:
         #audio_url = "https://huggingface.co/datasets/bezzam/audio_samples/resolve/main/librispeech_mr_quilter.wav"
 
         wav = fragment_to_waveform(audio_url)
@@ -125,7 +127,7 @@ class AlignedASR:
 
         chunks = []
         for start_sample, end_sample, payload in wav_list:
-            chunks.append(self.asr_chunk(payload, time_shift = start_sample / WAV_SAMPLE_RATE))
+            chunks.append(self.asr_chunk(payload, time_shift = start_sample / WAV_SAMPLE_RATE, language=language))
             
         if label is None and isinstance(audio_url, Path):
             label = audio_url.stem
@@ -144,7 +146,7 @@ class AlignedASR:
 
 
 
-    def asr_chunk_scores(self, audio_fragment, topk=3, requested_tokens : list[int] | None = None) -> AsrChunkScored:
+    def asr_chunk_scores(self, audio_fragment, topk=3, requested_tokens : list[int] | None = None,  language: str | None=None) -> AsrChunkScored:
         if isinstance(audio_fragment, list):
             wav_list = [fragment_to_waveform(z) for z in audio_fragment]
         else:
@@ -154,7 +156,7 @@ class AlignedASR:
             self.asr_model = model_to(self.asr_model, self._good_device)
             
          
-        inputs = self.asr_processor.apply_transcription_request(audio=wav_list)
+        inputs = self.asr_processor.apply_transcription_request(audio=wav_list, language=language)
         inputs = inputs.to(self.asr_model.device, self.asr_model.dtype)
         with torch.inference_mode(): 
             output_dict = self.asr_model.generate(**inputs, max_new_tokens=256,output_scores=True, return_dict_in_generate=True)
@@ -200,6 +202,41 @@ class AlignedASR:
         return AsrChunkScored(segments=segments, transcript=transcript, language=language,ranges=ranges, requested_score=requested_score)
 
     def tokenizer_dictionary(self) -> list[str]:
-        VOCAB_DICT_SIZE = 151936
-        indices = range(VOCAB_DICT_SIZE + 1)
-        return [self.asr_processor.tokenizer.decode([a]) for a in indices]
+        if self._tokenizer_dictionary is None:
+            VOCAB_DICT_SIZE = 151936
+            indices = range(VOCAB_DICT_SIZE + 1)
+            self._tokenizer_dictionary =  [self.asr_processor.tokenizer.decode([a]) for a in indices]
+        return self._tokenizer_dictionary
+
+    def expected_tokens(self, text: str, language: str) -> list[int]:
+        # Perform a longest prefix match on the dictionary.
+        language = " " + language.strip().lower().capitalize()
+        tokenizer_dictionary = self.tokenizer_dictionary()
+        as_dict = {v: k for k,v in enumerate(tokenizer_dictionary)}
+        language_token = as_dict[language]
+        text_tokens = []
+        remaining_text = text
+        while remaining_text: 
+            # Shortcut if we have a direct match.
+            if remaining_text in as_dict:
+                text_tokens.append(as_dict[remaining_text])
+                break;
+
+            best_str_token = None
+            best_length = 0
+
+            for tok, v in enumerate(tokenizer_dictionary):
+                matching_start = remaining_text.startswith(v)
+                if matching_start:
+                    # See if it is a better fit.
+                    if best_length < len(v):
+                        best_str_token = tok
+                        best_length = len(v)
+
+            
+            if not best_str_token:
+                raise ValueError(f"cannot decompose text into expected tokens, failed to find prefix at {remaining_text}")
+            remaining_text = remaining_text[best_length:]
+            text_tokens.append(best_str_token)
+            
+        return [ASR_LANGUAGE_TOKEN, language_token,ASR_START_TOKEN] + text_tokens

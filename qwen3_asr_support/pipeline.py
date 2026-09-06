@@ -36,15 +36,18 @@ def fragment_to_waveform(a):
         
 
 class AlignedASR:
-    def __init__(self, asr_model_id: str, aligner_model_id: str, local_files_only: bool=True, shuffle_memory: bool = False, chunk: bool = True):
+    def __init__(self, asr_model_id: str, aligner_model_id: str, local_files_only: bool=True, shuffle_memory: bool = False, chunk: bool = True, align: bool = True):
         self._tokenizer_dictionary : list[str] | None = None
         self.asr_processor = AutoProcessor.from_pretrained(asr_model_id, local_files_only=local_files_only)
         self.asr_model = AutoModelForMultimodalLM.from_pretrained(asr_model_id, device_map="auto", local_files_only=local_files_only)
+
+        self._align = align;
         
-        self.aligner_processor = AutoProcessor.from_pretrained(aligner_model_id, local_files_only=local_files_only)
-        self.aligner_model = AutoModelForTokenClassification.from_pretrained(
-            aligner_model_id, dtype=torch.bfloat16, device_map="auto", local_files_only=local_files_only
-        )
+        if align:
+            self.aligner_processor = AutoProcessor.from_pretrained(aligner_model_id, local_files_only=local_files_only)
+            self.aligner_model = AutoModelForTokenClassification.from_pretrained(
+                aligner_model_id, dtype=torch.bfloat16, device_map="auto", local_files_only=local_files_only
+            )
 
         if False:
             # Fails on:  Not enough SMs to use max_autotune_gemm mode
@@ -67,7 +70,7 @@ class AlignedASR:
             #wav_list = process_vad(wav, self._worker_vad_model, segment_threshold_s=_vad_segment_threshold)
             
 
-    def asr_chunk(self, audio_fragment, time_shift: float = 0.0,  language: str | None=None) -> AlignedChunk:
+    def asr_chunk(self, audio_fragment, time_shift: float = 0.0,  language: str | None=None, align: bool = True) -> AlignedChunk:
         if self._shuffle_memory:
             self.asr_model = model_to(self.asr_model, self._good_device)
 
@@ -80,6 +83,9 @@ class AlignedASR:
         parsed = self.asr_processor.decode(generated_ids, return_format="parsed")[0]
         transcript = parsed["transcription"]
         language = parsed["language"] or "English"
+        
+        if not self._align or not align:
+            return AlignedChunk(fragments=[], language=language, transcript=transcript)
 
         
         if self._shuffle_memory:
@@ -155,7 +161,6 @@ class AlignedASR:
         if self._shuffle_memory:
             self.asr_model = model_to(self.asr_model, self._good_device)
             
-         
         inputs = self.asr_processor.apply_transcription_request(audio=wav_list, language=language)
         inputs = inputs.to(self.asr_model.device, self.asr_model.dtype)
         with torch.inference_mode(): 

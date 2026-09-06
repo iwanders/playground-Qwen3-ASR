@@ -81,7 +81,8 @@ app.add_routes([web.get('/', handle),
 app.router.add_static('/assets', path=THIS_PATH / "assets", show_index=True)
 
 def run_server(args):
-    pipeline = AlignedASR(asr_model_id=args.asr_model, aligner_model_id=args.aligner_model, local_files_only=args.local_files_only, shuffle_memory=args.reduce_memory)
+    align = args.align
+    pipeline = AlignedASR(asr_model_id=args.asr_model, aligner_model_id=args.aligner_model, local_files_only=args.local_files_only, shuffle_memory=args.reduce_memory, align=align)
     work_abstraction = PipelineAbstraction(pipeline)
     pipeline_worker = PipelineWorker(work_abstraction)
     app["pipeline"] = pipeline_worker
@@ -121,6 +122,7 @@ if __name__ == '__main__':
     parser_run_asr_aligned.add_argument("--reduce-memory", default=False, action="store_true")
     parser_run_asr_aligned.add_argument("--asr-model", type=str, help="The asr model to use %(default)s", default=asr_model_id)
     parser_run_asr_aligned.add_argument("--aligner-model", type=str, help="The aligner model to use %(default)s", default=aligner_model_id)
+    parser_run_asr_aligned.add_argument("--no-align", dest="align", default=True, action="store_false", help="Skip alignment stage")
     parser_run_asr_aligned.add_argument("--ssl",  default=False, action="store_true", help="use ssl, for ios to use mic")
     parser_run_asr_aligned.add_argument("--ssl-port",  type=int,  default=8001, help="Port to bind to when using ssl" )
     

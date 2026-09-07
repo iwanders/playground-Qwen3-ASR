@@ -1,6 +1,7 @@
 import gc
 from pathlib import Path
 
+import numpy as np
 import torch
 from qwen3_asr_toolkit.audio_tools import WAV_SAMPLE_RATE, load_audio, process_vad
 from silero_vad import load_silero_vad
@@ -9,9 +10,15 @@ from transformers import (
     AutoModelForTokenClassification,
     AutoProcessor,
 )
-import numpy as np
 
-from .model import AlignedChunk, AlignedFragment, AlignedResult, TokenScored, AsrChunkScored, TokenAlternatives
+from .model import (
+    AlignedChunk,
+    AlignedFragment,
+    AlignedResult,
+    AsrChunkScored,
+    TokenAlternatives,
+    TokenScored,
+)
 
 
 def model_to(model, device):
@@ -27,12 +34,12 @@ ASR_START_TOKEN = 151704
 
 
 def fragment_to_waveform(a):
-    if isinstance(a, str) or isinstance(a, Path):
+    if isinstance(a, (str, Path)):
         return load_audio(str(a))
     elif isinstance(a, np.ndarray):
         return a
     else:
-        raise ValueError(f"Unsupported type for audio {type(a)}")
+        raise TypeError(f"Unsupported type for audio {type(a)}")
         
 
 class AlignedASR:
@@ -140,15 +147,15 @@ class AlignedASR:
 
         transcript = []
         fragments = []
-        language = []
+        languages_found : list[str] = []
         for c in chunks:
             transcript.append(c.transcript)
             fragments.extend(c.fragments)
-            if not c.language in language:
-                language.append( c.language)
+            if not c.language in languages_found:
+                languages_found.append( c.language)
 
         transcript = " ".join(transcript)
-        return AlignedResult(language=language,transcript=transcript, label= label, fragments=fragments, chunks=chunks)
+        return AlignedResult(language=languages_found,transcript=transcript, label= label, fragments=fragments, chunks=chunks)
 
 
 

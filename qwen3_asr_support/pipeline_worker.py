@@ -1,16 +1,17 @@
 
 
 
-import threading
-from queue import Queue
-import queue
-from concurrent.futures import Future as ConcurrentFuture
 import asyncio
-from pydantic import BaseModel, ConfigDict
+import queue
+import threading
+from concurrent.futures import Future as ConcurrentFuture
 from enum import Enum
+from queue import Queue
 from typing import Any
-from .pipeline import AlignedASR
 
+from pydantic import BaseModel, ConfigDict
+
+from .pipeline import AlignedASR
 
 
 class TaskType(Enum):
@@ -24,7 +25,9 @@ class AsyncTask(BaseModel):
     model_config = ConfigDict(extra='allow')
 
 
-from abc import ABC,abstractmethod
+from abc import ABC, abstractmethod
+
+
 class WorkerAbstraction(ABC):
     @abstractmethod
     def do_work(self, task: Any) -> Any:

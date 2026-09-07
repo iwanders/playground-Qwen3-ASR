@@ -79,9 +79,9 @@ app.router.add_static('/assets', path=THIS_PATH / "assets", show_index=True)
 
 def run_server(args):
     align = args.align
-    pipeline = AlignedASR(asr_model_id=args.asr_model, aligner_model_id=args.aligner_model, local_files_only=args.local_files_only, shuffle_memory=args.reduce_memory, align=align)
+    pipeline = AlignedASR(asr_model_id=args.asr_model, aligner_model_id=args.aligner_model, local_files_only=args.local_files_only, offload_immediately=args.reduce_memory, align=align)
     work_abstraction = PipelineAbstraction(pipeline)
-    pipeline_worker = PipelineWorker(work_abstraction)
+    pipeline_worker = PipelineWorker(work_abstraction, idle_period_s=args.idle_duration)
     app["pipeline"] = pipeline_worker
 
     ssl_context = None
@@ -122,6 +122,7 @@ if __name__ == '__main__':
     parser_run_asr_aligned.add_argument("--no-align", dest="align", default=True, action="store_false", help="Skip alignment stage")
     parser_run_asr_aligned.add_argument("--ssl",  default=False, action="store_true", help="use ssl, for ios to use mic")
     parser_run_asr_aligned.add_argument("--ssl-port",  type=int,  default=8001, help="Port to bind to when using ssl" )
+    parser_run_asr_aligned.add_argument("--idle-duration",  type=float,  default=300, help="The idle duration after which the model is moved to cpu." )
     
     parser_run_asr_aligned.add_argument("--port",  type=int,  default=8000, help="Port to bind to." )
     

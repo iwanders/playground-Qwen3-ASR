@@ -4,6 +4,7 @@
 import asyncio
 import queue
 import threading
+import time
 from concurrent.futures import Future as ConcurrentFuture
 from enum import Enum
 from queue import Queue
@@ -32,6 +33,9 @@ class WorkerAbstraction(ABC):
     @abstractmethod
     def do_work(self, task: Any) -> Any:
         pass
+    @abstractmethod
+    def idle(self):
+        pass
 
 class PipelineAbstraction(WorkerAbstraction):
     def __init__(self, pipeline: AlignedASR):
@@ -42,6 +46,8 @@ class PipelineAbstraction(WorkerAbstraction):
                 return self._pipeline.asr_chunk(**task.payload)
             case TaskType.ASR_CHUNK_SCORES:
                 return self._pipeline.asr_chunk_scores(**task.payload)
+    def idle(self):
+        self._pipeline.models_to_cpu()
 
 class TestAbstraction(WorkerAbstraction):
     def __init__(self):
@@ -53,30 +59,41 @@ class TestAbstraction(WorkerAbstraction):
         res = task * 2
         print(f"do work completed calculation of {task} result is  {res}");
         return res
+    def idle(self):
+        pass
          
 
 
 class PipelineWorker:
-    def __init__(self, work_abstraction: WorkerAbstraction):
+    def __init__(self, work_abstraction: WorkerAbstraction, idle_period_s: float = 30.0):
+        self._last_active_time: float = time.time()
+        self._idle_period_s: float = idle_period_s
         self._work_queue = Queue() 
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._worker: WorkerAbstraction = work_abstraction
         self._thread.start()
 
     def _run(self):
-        while True:
+        while True: 
             try:
-                item, future = self._work_queue.get()
-                try:
-                    r = self._worker.do_work(item)
-                    future.set_result(r)
-                except Exception as e:
-                    future.set_exception(e)
-                finally:
-                    self._work_queue.task_done()
-                    
+                item, future = self._work_queue.get(timeout=1.0)
+            except queue.Empty as e:
+                # Timeout occured, which allows us to fall through and check if we need to trigger idle.
+                since_last_active = time.time() - self._last_active_time
+                if since_last_active >= self._idle_period_s:
+                    self._worker.idle()
+                continue
             except queue.ShutDown as e:
                 break;
+            try:
+                self._last_active_time = time.time()
+                r = self._worker.do_work(item)
+                future.set_result(r) 
+            except Exception as e:
+                future.set_exception(e)
+            finally: 
+                self._work_queue.task_done()
+                    
 
     def close(self):
         self._work_queue.shutdown(immediate=True)

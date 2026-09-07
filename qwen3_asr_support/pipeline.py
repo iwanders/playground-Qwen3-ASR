@@ -22,6 +22,8 @@ from .model import (
 
 
 def model_to(model, device):
+    if model is None:
+        return model
     old_model = model
     res = old_model.to(device)
     del old_model
@@ -43,7 +45,7 @@ def fragment_to_waveform(a):
         
 
 class AlignedASR:
-    def __init__(self, asr_model_id: str, aligner_model_id: str, local_files_only: bool=True, shuffle_memory: bool = False, chunk: bool = True, align: bool = True):
+    def __init__(self, asr_model_id: str, aligner_model_id: str, local_files_only: bool=True, offload_immediately: bool = False, chunk: bool = True, align: bool = True):
         self._tokenizer_dictionary : list[str] | None = None
         self.asr_processor = AutoProcessor.from_pretrained(asr_model_id, local_files_only=local_files_only)
         self.asr_model = AutoModelForMultimodalLM.from_pretrained(asr_model_id, device_map="auto", local_files_only=local_files_only)
@@ -55,18 +57,21 @@ class AlignedASR:
             self.aligner_model = AutoModelForTokenClassification.from_pretrained(
                 aligner_model_id, dtype=torch.bfloat16, device_map="auto", local_files_only=local_files_only
             )
+        else:
+            self.aligner_model = None
 
         if False:
             # Fails on:  Not enough SMs to use max_autotune_gemm mode
             self.asr_model = torch.compile(self.asr_model)
             self.aligner_model = torch.compile(self.aligner_model)
         
-        self._shuffle_memory = shuffle_memory
-        if shuffle_memory:
-            self._good_device = self.asr_model.device 
+        self._offload_immediately = offload_immediately
+        self._good_device = self.asr_model.device 
+        if offload_immediately:
             # move them back to the cpu.
-            self.aligner_model = model_to(self.aligner_model, "cpu")
             self.asr_model = model_to(self.asr_model, "cpu")
+            if self.aligner_model:
+                self.aligner_model = model_to(self.aligner_model, "cpu")
 
 
         self._chunk = chunk
@@ -75,11 +80,16 @@ class AlignedASR:
             self._worker_vad_model = load_silero_vad(onnx=False)
             self._vad_segment_threshold = 120
             #wav_list = process_vad(wav, self._worker_vad_model, segment_threshold_s=_vad_segment_threshold)
-            
+
+
+    def models_to_cpu(self):
+        self.aligner_model = model_to(self.aligner_model, "cpu")
+        self.asr_model = model_to(self.asr_model, "cpu")
+
 
     def asr_chunk(self, audio_fragment, time_shift: float = 0.0,  language: str | None=None, align: bool = True) -> AlignedChunk:
-        if self._shuffle_memory:
-            self.asr_model = model_to(self.asr_model, self._good_device)
+        # Load model to GPU.
+        self.asr_model = model_to(self.asr_model, self._good_device)
 
         # Step 1: Transcribe
         inputs = self.asr_processor.apply_transcription_request(audio=audio_fragment, language=language)
@@ -95,12 +105,12 @@ class AlignedASR:
             return AlignedChunk(fragments=[], language=language, transcript=transcript)
 
         
-        if self._shuffle_memory:
+        if self._offload_immediately:
             # Move it back to the cpu.
             self.asr_model = model_to(self.asr_model, "cpu") 
             
-            # Move the aligner model to the good device.
-            self.aligner_model = model_to(self.aligner_model, self._good_device) 
+        # Move the aligner model to the good device.
+        self.aligner_model = model_to(self.aligner_model, self._good_device) 
             
         # Step 2: Prepare alignment inputs
         aligner_inputs, word_lists = self.aligner_processor.prepare_forced_aligner_inputs(
@@ -120,7 +130,7 @@ class AlignedASR:
             timestamp_token_id=self.aligner_model.config.timestamp_token_id,
         )[0]
 
-        if self._shuffle_memory: 
+        if self._offload_immediately: 
             self.aligner_model = model_to(self.aligner_model, "cpu") 
 
 
@@ -165,14 +175,18 @@ class AlignedASR:
         else:
             wav_list = [fragment_to_waveform(audio_fragment)]
 
-        if self._shuffle_memory:
-            self.asr_model = model_to(self.asr_model, self._good_device)
+        # Load to the good device.
+        self.asr_model = model_to(self.asr_model, self._good_device)
             
         inputs = self.asr_processor.apply_transcription_request(audio=wav_list, language=language)
         inputs = inputs.to(self.asr_model.device, self.asr_model.dtype)
         with torch.inference_mode(): 
             output_dict = self.asr_model.generate(**inputs, max_new_tokens=256,output_scores=True, return_dict_in_generate=True)
         
+        # Offload back to the cpu.
+        if self._offload_immediately:
+            self.asr_model = model_to(self.asr_model, "cpu")
+
         output_ids = output_dict["sequences"]
         output_scores = output_dict["scores"]
         generated_ids = output_ids[:, inputs["input_ids"].shape[1]:]

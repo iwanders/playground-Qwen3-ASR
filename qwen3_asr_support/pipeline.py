@@ -46,6 +46,37 @@ def fragment_to_waveform(a):
 
 class AlignedASR:
     def __init__(self, asr_model_id: str, aligner_model_id: str, local_files_only: bool=True, offload_immediately: bool = False, chunk: bool = True, align: bool = True):
+        """Automatic Speech Recognition with optional forced alignment.
+    
+        This class provides ASR capabilities using Qwen3-ASR models, with optional
+        word-level timestamp alignment using Qwen3-ForcedAligner.
+    
+        Parameters
+        ----------
+        asr_model_id : str
+            The Hugging Face model ID for the ASR (Automatic Speech Recognition) model.
+            Used to load both the ASR processor and model.
+            asr_model_id = "Qwen/Qwen3-ASR-0.6B-hf"
+            or
+            asr_model_id = "Qwen/Qwen3-ASR-1.7B-hf"
+        aligner_model_id : str
+            The Hugging Face model ID for the forced aligner model. Used when
+            `align=True` to compute word-level timestamps on the transcript.
+            aligner_model_id = "Qwen/Qwen3-ForcedAligner-0.6B-hf"
+        local_files_only : bool, optional
+            If True, models will be loaded only from local cache. If False and models
+            aren't cached, they will be downloaded from Hugging Face. Default is True.
+        offload_immediately : bool, optional
+            If True, moves ASR and aligner models to CPU immediately after initialization
+            to conserve VRAM. Models are lazily loaded to GPU on first use. Default is False.
+        chunk : bool, optional
+            If True, enables chunk-based processing for audio exceeding 3 minutes using
+            VAD (Voice Activity Detection) segmentation. Default is True.
+        align : bool, optional
+            If True, enables forced alignment which computes word-level start/end timestamps
+            for each transcribed word. If False, the aligner model is not loaded.
+            Default is True.
+        """
         self._tokenizer_dictionary : list[str] | None = None
         self.asr_processor = AutoProcessor.from_pretrained(asr_model_id, local_files_only=local_files_only)
         self.asr_model = AutoModelForMultimodalLM.from_pretrained(asr_model_id, device_map="auto", local_files_only=local_files_only)

@@ -114,11 +114,34 @@ class AlignedASR:
 
 
     def models_to_cpu(self):
+        """
+            Force models to the cpu immediately.
+        """
         self.aligner_model = model_to(self.aligner_model, "cpu")
         self.asr_model = model_to(self.asr_model, "cpu")
 
 
     def asr_chunk(self, audio_fragment, time_shift: float = 0.0,  language: str | None=None, align: bool = True) -> AlignedChunk:
+        """
+            Run ASR on a single audio fragment and output an aligned chunk.
+            
+            Parameters
+            ----------
+            audio_fragment : np.ndarray
+                Audio samples to run ASR on.
+                
+            time_shift : float
+                Timeshift value to apply to the aligned chunks, this makes working with sliced audio fragments easier.
+                
+            language : str | None, optional
+                Language to pass to the transcription request, this does not mean that the return chunk is always in
+                this language.
+                
+            align : bool, optional
+                Wether or not to populate the fragments with their individual alignment values, if false the alignment
+                is skipped.
+                
+        """
         # Load model to GPU.
         self.asr_model = model_to(self.asr_model, self._good_device)
 

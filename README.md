@@ -2,6 +2,8 @@
 
 Some wrapper tooling around qwen3-asr, including the forced aligner to make timestamped transcripts.
 
+Main entry point is the `AlignedASR` class that wraps the actual model in helper tooling.
+The structs in `model.py` define the interaction and returns from that class.
 
 ## CLI
 ```

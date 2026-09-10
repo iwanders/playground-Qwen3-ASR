@@ -2,6 +2,7 @@
 
 Some wrapper tooling around qwen3-asr, including the forced aligner to make timestamped transcripts.
 
+
 ## CLI
 ```
 ./main.py  asr_aligned /tmp/our_audio_with_voice.mp3  --output-dir /tmp/foobar/
@@ -47,4 +48,11 @@ or for iOS, access to the microphone needs ssl:
 python3 -m streaming_asr.server server --ssl
 ```
 
+The model itself expects a sample rate of 16000 Hz, silero vad downsamples to that, but if you create your smaples in
+another way be sure to account for that.
+
+
+
+
+## License
 License is Apache, same as qwen3-asr.

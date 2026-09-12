@@ -1,9 +1,12 @@
-# Playground Qwen3-ASR
+# Qwen3-ASR server
 
 Some wrapper tooling around qwen3-asr, including the forced aligner to make timestamped transcripts.
 
-Main entry point is the `AlignedASR` class that wraps the actual model in helper tooling.
+The `qwen3_asr_support` module provides a wrapper class `AlignedASR` class that wraps the actual model in helper tooling.
 The structs in `model.py` define the interaction and returns from that class.
+The `PipelineWorker` class provides a threaded worker that runs the actual ASR and can be integrated into async servers, an example is provided in `example_server`.
+
+Note that to access the microphone on iOS requires https.
 
 ## CLI
 ```

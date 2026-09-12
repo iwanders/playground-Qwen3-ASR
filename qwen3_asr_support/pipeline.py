@@ -192,6 +192,23 @@ class AlignedASR:
 
 
     def process(self, audio_url, label: str|None  = None,  language: str | None=None) -> AlignedResult:
+        """
+            Process the provided audio url or waveform.
+
+            This runs a VAD model under the hood to split long audio into < 180 s intervals.
+            
+            Parameters
+            ----------
+            label : str|None 
+                The label to propagate to the AlignedResult, set to the stem of the audio url if it is an url.
+                
+            time_shift : float
+                Timeshift value to apply to the aligned chunks, this makes working with sliced audio fragments easier.
+                
+            language : str | None, optional
+                Passed to asr_chunk.                
+        """
+        
         #audio_url = "https://huggingface.co/datasets/bezzam/audio_samples/resolve/main/librispeech_mr_quilter.wav"
 
         wav = fragment_to_waveform(audio_url)
@@ -223,7 +240,28 @@ class AlignedASR:
 
 
 
-    def asr_chunk_scores(self, audio_fragment, topk=3, requested_tokens : list[int] | None = None,  language: str | None=None) -> AsrChunkScored:
+    def asr_chunk_scores(self, audio_fragment: str | np.ndarray, topk: int=3, requested_tokens : list[int] | None = None,  language: str | None=None) -> AsrChunkScored:
+        """
+            Process a chunk and score its output against the requested tokens, also returns the 'topk' tokens for each position.
+
+            This can be used to score how well a particular audio segment pronounced individual tokens.
+            
+            Parameters
+            ----------
+            audio_fragment : str | np.ndarray
+                The audio fragment, either an URL or a 16000 Hz waveform.
+                
+            topk : int
+                The top 'k' elements to return for each token identified.
+                
+            requested_tokens : list[int] | None, optional
+                The requested / expected tokens against which to calculate the score.  
+                
+            language : str | None, optional
+                Passed to asr_chunk.                   
+        """
+        
+        
         if isinstance(audio_fragment, list):
             wav_list = [fragment_to_waveform(z) for z in audio_fragment]
         else:
@@ -282,6 +320,10 @@ class AlignedASR:
         return AsrChunkScored(segments=segments, transcript=transcript, language=language,ranges=ranges, requested_score=requested_score)
 
     def tokenizer_dictionary(self) -> list[str]:
+        """
+            Emits the entire tokenizer dictionary as a list of token values. The token's index is its integer value.             
+        """
+        
         if self._tokenizer_dictionary is None:
             VOCAB_DICT_SIZE = 151936
             indices = range(VOCAB_DICT_SIZE + 1)
@@ -289,6 +331,25 @@ class AlignedASR:
         return self._tokenizer_dictionary
 
     def expected_tokens(self, text: str, language: str) -> list[int]:
+        """
+            Try to create a list of expected tokens for a provided string.
+
+            This performs a longest-prefix match approach to convert text to tokens, taken the token that's the longest
+            matching one for each word or sequence of words.
+
+            This is not tested that thoroughly, but seems to work for the particular use cases I'm intested in.
+
+            Todo: There's probably a 'proper' way to tokenize this by actually using the tokenizer...
+            
+            Parameters
+            ----------
+            text : str
+                The text to tokenize.
+
+            language : str
+                Language token to use.              
+        """
+        
         # Perform a longest prefix match on the dictionary.
         language = " " + language.strip().lower().capitalize()
         tokenizer_dictionary = self.tokenizer_dictionary()

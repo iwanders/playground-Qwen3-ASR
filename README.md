@@ -6,6 +6,8 @@ The `qwen3_asr_support` module provides a wrapper class `AlignedASR` class that 
 The structs in `model.py` define the interaction and returns from that class.
 The `PipelineWorker` class provides a threaded worker that runs the actual ASR and can be integrated into async servers, an example is provided in `example_server`.
 
+The `asr_chunk_scores` method outputs the top 'n' tokens for each position and can provide the score against an expected token sequence.
+
 Note that to access the microphone on iOS requires https.
 
 ## CLI

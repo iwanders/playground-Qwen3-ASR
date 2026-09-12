@@ -10,7 +10,7 @@ import json
 from qwen3_asr_support.pipeline import AlignedASR
 
 def run_asr_aligned(args):
-    pipeline = AlignedASR(asr_model_id=args.asr_model, aligner_model_id=args.aligner_model, local_files_only=args.local_files_only, shuffle_memory=args.reduce_memory)
+    pipeline = AlignedASR(asr_model_id=args.asr_model, aligner_model_id=args.aligner_model, local_files_only=args.local_files_only, offload_immediately=args.reduce_memory)
     for f in args.files:
         r =  pipeline.process(f, language=args.language)
         print(r)
@@ -22,7 +22,7 @@ def run_asr_aligned(args):
             f.write(as_json)
 
 def run_asr_scores(args):
-    pipeline = AlignedASR(asr_model_id=args.asr_model, aligner_model_id=args.aligner_model, local_files_only=args.local_files_only, shuffle_memory=args.reduce_memory)
+    pipeline = AlignedASR(asr_model_id=args.asr_model, aligner_model_id=args.aligner_model, local_files_only=args.local_files_only, offload_immediately=args.reduce_memory)
 
     requested_tokens = None
     if args.requested_tokens is not None:
@@ -40,7 +40,7 @@ def run_asr_scores(args):
         
 
 def run_dump_tokenizer_dict(args):
-    pipeline = AlignedASR(asr_model_id=args.asr_model, aligner_model_id=args.aligner_model, local_files_only=args.local_files_only, shuffle_memory=args.reduce_memory)
+    pipeline = AlignedASR(asr_model_id=args.asr_model, aligner_model_id=args.aligner_model, local_files_only=args.local_files_only, offload_immediately=args.reduce_memory)
 
     dictionary = pipeline.tokenizer_dictionary()
 

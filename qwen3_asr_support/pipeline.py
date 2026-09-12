@@ -332,15 +332,10 @@ class AlignedASR:
 
     def expected_tokens(self, text: str, language: str) -> list[int]:
         """
-            Try to create a list of expected tokens for a provided string.
-
-            This performs a longest-prefix match approach to convert text to tokens, taken the token that's the longest
-            matching one for each word or sequence of words.
+            Use the tokenizer to encode the provided text into a sequence of tokens, including the language prefix.
 
             This is not tested that thoroughly, but seems to work for the particular use cases I'm intested in.
-
-            Todo: There's probably a 'proper' way to tokenize this by actually using the tokenizer...
-            
+ 
             Parameters
             ----------
             text : str
@@ -349,35 +344,43 @@ class AlignedASR:
             language : str
                 Language token to use.              
         """
-        
         # Perform a longest prefix match on the dictionary.
         language = " " + language.strip().lower().capitalize()
         tokenizer_dictionary = self.tokenizer_dictionary()
         as_dict = {v: k for k,v in enumerate(tokenizer_dictionary)}
         language_token = as_dict[language]
-        text_tokens = []
-        remaining_text = text
-        while remaining_text: 
-            # Shortcut if we have a direct match.
-            if remaining_text in as_dict:
-                text_tokens.append(as_dict[remaining_text])
-                break;
+        
+        def tokenize_prefix_matcher(text: str):  # pyright: ignore[reportUnusedFunction]
+            """
+            Try to create a list of expected tokens for a provided string.
 
-            best_str_token = None
-            best_length = 0
+            This performs a longest-prefix match approach to convert text to tokens, taken the token that's the longest
+            matching one for each word or sequence of words.
 
-            for tok, v in enumerate(tokenizer_dictionary):
-                matching_start = remaining_text.startswith(v)
-                if matching_start:
-                    # See if it is a better fit.
-                    if best_length < len(v):
-                        best_str_token = tok
-                        best_length = len(v)
+            """
+            text_tokens = []
+            remaining_text = text
+            while remaining_text: 
+                # Shortcut if we have a direct match.
+                if remaining_text in as_dict:
+                    text_tokens.append(as_dict[remaining_text])
+                    break;
+    
+                best_str_token = None
+                best_length = 0
+    
+                for tok, v in enumerate(tokenizer_dictionary):
+                    matching_start = remaining_text.startswith(v)
+                    if matching_start and best_length < len(v):
+                            best_str_token = tok
+                            best_length = len(v)
+    
+                
+                if not best_str_token:
+                    raise ValueError(f"cannot decompose text into expected tokens, failed to find prefix at {remaining_text}")
+                remaining_text = remaining_text[best_length:]
+                text_tokens.append(best_str_token)
+            return text_tokens
 
-            
-            if not best_str_token:
-                raise ValueError(f"cannot decompose text into expected tokens, failed to find prefix at {remaining_text}")
-            remaining_text = remaining_text[best_length:]
-            text_tokens.append(best_str_token)
-            
+        text_tokens = self.asr_processor.tokenizer.encode(text)
         return [ASR_LANGUAGE_TOKEN, language_token,ASR_START_TOKEN] + text_tokens

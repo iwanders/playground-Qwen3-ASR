@@ -1,4 +1,5 @@
 import gc
+import hashlib
 from pathlib import Path
 
 import numpy as np
@@ -191,7 +192,7 @@ class AlignedASR:
         return AlignedChunk(fragments=[AlignedFragment(text = a["text"], start_time=a["start_time"]+time_shift, end_time=a["end_time"] + time_shift) for a in timestamps], language=language, transcript=transcript)
 
 
-    def process(self, audio_url, label: str|None  = None,  language: str | None=None) -> AlignedResult:
+    def process(self, audio_url, label: str|None  = None,  language: str | None=None, force_vad: bool = False, checkpoint_dir: Path| None = None) -> AlignedResult:
         """
             Process the provided audio url or waveform.
 
@@ -206,37 +207,58 @@ class AlignedASR:
                 Timeshift value to apply to the aligned chunks, this makes working with sliced audio fragments easier.
                 
             language : str | None, optional
-                Passed to asr_chunk.                
+                Passed to asr_chunk.
+                
+            force_vad : bool
+                If true, VAD is forced to run even if self._chunk is false or if the sample is less than 3 minutes.
+
+            checkpoint_dir : Path | None
+                The path to write the checkpoints to if any, this is keyed by audio only!
         """
         
         #audio_url = "https://huggingface.co/datasets/bezzam/audio_samples/resolve/main/librispeech_mr_quilter.wav"
 
         wav = fragment_to_waveform(audio_url)
+        sha_hash = hashlib.sha256(wav.tobytes()).hexdigest()
+
     
         # Segment wav exceeding 3 minutes
-        if len(wav) / WAV_SAMPLE_RATE >= 180 and self._chunk: 
+        if len(wav) / WAV_SAMPLE_RATE >= 180 and self._chunk or force_vad: 
             wav_list = process_vad(wav, self._worker_vad_model, segment_threshold_s=self._vad_segment_threshold)
         else:
             wav_list = [(0, len(wav), wav)]
 
-        chunks = []
-        for start_sample, end_sample, payload in wav_list:
-            chunks.append(self.asr_chunk(payload, time_shift = start_sample / WAV_SAMPLE_RATE, language=language))
-            
         if label is None and isinstance(audio_url, Path):
             label = audio_url.stem
 
-        transcript = []
-        fragments = []
+        result = AlignedResult(language = [], transcript="", label=label, fragments = [], chunks = [])
+        filepath = None
+        if checkpoint_dir:
+            filepath = checkpoint_dir / f"{label}_{sha_hash}.json"
+            if filepath.is_file():
+                with filepath.open("r") as f:
+                    result = AlignedResult.model_validate_json(f.read())
+        
+        def flush_result():
+            if filepath:
+                with filepath.open("w") as f:
+                    f.write(result.model_dump_json(indent=2, ensure_ascii=False))
+            
+ 
         languages_found : list[str] = []
-        for c in chunks:
-            transcript.append(c.transcript)
-            fragments.extend(c.fragments)
+        for windex in range(len(result.chunks), len(wav_list)):
+            start_sample, end_sample, payload = wav_list[windex]
+            c = self.asr_chunk(payload, time_shift = start_sample / WAV_SAMPLE_RATE, language=language)
+            result.fragments.extend(c.fragments)
             if not c.language in languages_found:
                 languages_found.append( c.language)
+            result.chunks.append(c)
+            flush_result()
+            
 
-        transcript = " ".join(transcript)
-        return AlignedResult(language=languages_found,transcript=transcript, label= label, fragments=fragments, chunks=chunks)
+        transcript = " ".join(c.transcript for c in result.chunks)
+        result.transcript = transcript
+        return result
 
 
 

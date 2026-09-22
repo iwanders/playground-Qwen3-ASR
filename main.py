@@ -13,7 +13,7 @@ def run_asr_aligned(args):
     pipeline = AlignedASR(asr_model_id=args.asr_model, aligner_model_id=args.aligner_model, local_files_only=args.local_files_only, offload_immediately=args.reduce_memory)
     for f in args.files:
         r =  pipeline.process(f, language=args.language, force_vad=args.force_vad, checkpoint_dir=args.checkpoint_dir)
-        #print(r)
+        print(r)
         output_dir = args.output_dir if args.output_dir else f.parent
         output_filename = f.stem
         output_dest = output_dir / f"{output_filename}.json"
@@ -127,6 +127,8 @@ if __name__ == "__main__":
     else:
         logging.basicConfig(level=logging.INFO)
 
+    numba_logger = logging.getLogger("numba")
+    numba_logger.setLevel(logging.WARNING)
     # Execute the selected command's function
     if args.command:
         args.func(args)

@@ -1,5 +1,6 @@
 import gc
 import hashlib
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -21,6 +22,7 @@ from .model import (
     TokenScored,
 )
 
+logger = logging.getLogger(__name__)
 
 def model_to(model, device):
     if model is None:
@@ -46,7 +48,8 @@ def fragment_to_waveform(a):
         
 
 class AlignedASR:
-    def __init__(self, asr_model_id: str, aligner_model_id: str, local_files_only: bool=True, offload_immediately: bool = False, chunk: bool = True, align: bool = True):
+    def __init__(self,
+            asr_model_id: str, aligner_model_id: str, local_files_only: bool=True, offload_immediately: bool = False, chunk: bool = True, align: bool = True):
         """Automatic Speech Recognition with optional forced alignment.
     
         This class provides ASR capabilities using Qwen3-ASR models, with optional
@@ -223,7 +226,7 @@ class AlignedASR:
 
     
         # Segment wav exceeding 3 minutes
-        if len(wav) / WAV_SAMPLE_RATE >= 180 and self._chunk or force_vad: 
+        if len(wav) / WAV_SAMPLE_RATE >= 180 and self._chunk or force_vad:
             wav_list = process_vad(wav, self._worker_vad_model, segment_threshold_s=self._vad_segment_threshold)
         else:
             wav_list = [(0, len(wav), wav)]
@@ -238,15 +241,18 @@ class AlignedASR:
             if filepath.is_file():
                 with filepath.open("r") as f:
                     result = AlignedResult.model_validate_json(f.read())
+                    logger.debug(f"Loaded {filepath} with {len(result.chunks)} chunks")
         
         def flush_result():
             if filepath:
                 with filepath.open("w") as f:
                     f.write(result.model_dump_json(indent=2, ensure_ascii=False))
+                logger.debug(f"Wrote {filepath} with {len(result.chunks)} chunks")
             
  
         languages_found : list[str] = []
         for windex in range(len(result.chunks), len(wav_list)):
+            logger.debug(f"Processing chunk {windex} / {len(wav_list)}")
             start_sample, end_sample, payload = wav_list[windex]
             c = self.asr_chunk(payload, time_shift = start_sample / WAV_SAMPLE_RATE, language=language)
             result.fragments.extend(c.fragments)

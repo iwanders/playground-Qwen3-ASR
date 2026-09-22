@@ -249,21 +249,18 @@ class AlignedASR:
                     f.write(result.model_dump_json(indent=2, ensure_ascii=False))
                 logger.debug(f"Wrote {filepath} with {len(result.chunks)} chunks")
             
- 
-        languages_found : list[str] = []
+
         for windex in range(len(result.chunks), len(wav_list)):
             logger.debug(f"Processing chunk {windex} / {len(wav_list)}")
             start_sample, end_sample, payload = wav_list[windex]
             c = self.asr_chunk(payload, time_shift = start_sample / WAV_SAMPLE_RATE, language=language)
             result.fragments.extend(c.fragments)
-            if not c.language in languages_found:
-                languages_found.append( c.language)
+            if not c.language in result.language:
+                result.language.append(c.language)
             result.chunks.append(c)
+            result.transcript += (" " if len(result.transcript) else "") + c.transcript
             flush_result()
             
-
-        transcript = " ".join(c.transcript for c in result.chunks)
-        result.transcript = transcript
         return result
 
 

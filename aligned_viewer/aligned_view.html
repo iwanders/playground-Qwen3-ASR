@@ -6,14 +6,22 @@
     </head>
 
     <body>
-        <div id="waveform">
-          <!-- the waveform will be rendered here -->
+        <div id="audio_section">
+            <div id="waveform">
+            <!-- the waveform will be rendered here -->
+            </div>
         </div>
+        <button id="play_pause">play/pause</button>
 
         <script type="module">
         //import WaveSurfer from 'https://cdn.jsdelivr.net/npm/wavesurfer.js@8.0.0-beta.4/dist/wavesurfer.esm.js'
         import WaveSurfer from '/assets/wavesurfer.esm.js'
+        import RegionsPlugin from '/assets/regions.esm.js'
+        import ZoomPlugin from '/assets/zoom.esm.js'
+        import Minimap from '/assets/minimap.esm.js'
 
+        // Initialize the Regions plugin
+        const regions = RegionsPlugin.create()
 
         const audio_filename = "/serve_file/this_is_our_awesome_audio_filename.mp3";
         const aligned_filename = "/serve_file/this_is_the_aligned_file.json";
@@ -24,11 +32,84 @@
           waveColor: '#4F4A85',
           progressColor: '#383351',
           url: audio_filename,
+          minPxPerSec: 100,
+          plugins: [regions,
+              ZoomPlugin.create({
+                // the amount of zoom per wheel step, e.g. 0.5 means a 50% magnification per scroll
+                scale: 0.5,
+                // Optionally, specify the maximum pixels-per-second factor while zooming
+                maxZoom: 100,
+              }),
+              // Register the plugin
+              Minimap.create({
+                height: 20,
+                waveColor: '#ddd',
+                progressColor: '#999',
+                // the Minimap takes all the same options as the WaveSurfer itself
+              }),
+          ],
         })
 
-        wavesurfer.on('interaction', () => {
-          wavesurfer.play()
+        // wavesurfer.on('interaction', () => {
+        //   wavesurfer.play()
+        // })
+        document.querySelector('#play_pause').addEventListener('click', () => {
+          wavesurfer.playPause()
         })
+
+        // Give regions a random color when they are created
+        const random = (min, max) => Math.random() * (max - min) + min
+        const randomColor = () => `rgba(${random(0, 255)}, ${random(0, 255)}, ${random(0, 255)}, 0.5)`
+
+        function add_regions(data) {
+            for (let frag of data.fragments){
+                console.log(frag);
+                regions.addRegion({
+                  start: frag.start_time,
+                  end: frag.end_time,
+                  content: frag.text,
+                  color: randomColor(),
+                  drag: false,
+                  resize: false,
+                });
+            }
+        }
+
+        async function retrieve_asr() {
+          try {
+            // 1. Fetch the data from the API
+            const response = await fetch(aligned_filename);
+
+            // 2. Check if the network request was successful (status 200-299)
+            if (!response.ok) {
+              throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+
+            // 3. Parse the response body as JSON
+            const data = await response.json();
+
+            // 4. Do something with the data!
+            console.log("User Data:", data);
+
+            add_regions(data)
+
+          } catch (error) {
+            // Handle network errors or parsing errors
+            console.error("Could not fetch data:", error);
+          }
+        }
+
+
+
+        // Fired when the audio has loaded, decoded, and the waveform is drawn
+        wavesurfer.on('ready', (duration) => {
+          console.log('WaveSurfer is ready! Duration:', duration);
+          // Call the function
+          //
+          // From old docs at https://wavesurfer.xyz/plugins/regions
+          // addRegion(options) – Creates a region on the waveform. Returns a Region object. See Region Options, Region Methods and Region Events below. Note: You cannot add regions until the audio has finished loading, otherwise the start: and end: properties of the new region will be set to 0, or an unexpected value.
+          retrieve_asr();
+        });
         </script>
     </body>
 </html>

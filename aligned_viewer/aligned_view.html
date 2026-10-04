@@ -13,6 +13,8 @@
         </div>
         <button id="play_pause">play/pause</button>
         <p>
+            Some issues reported upstream with timestamps, see <a href="https://github.com/QwenLM/Qwen3-ASR/issues/197">this</a> issue.
+            There's a <a href="https://github.com/QwenLM/Qwen3-ASR/issues/197#issuecomment-5965450292">solution</a> proposed there that we may want to implement.
         </p>
 
         <script type="module">
@@ -21,6 +23,7 @@
         import RegionsPlugin from '/assets/regions.esm.js'
         import ZoomPlugin from '/assets/zoom.esm.js'
         import Minimap from '/assets/minimap.esm.js'
+        import Hover from '/assets/hover.esm.js'
 
         // Initialize the Regions plugin
         const regions = RegionsPlugin.create()
@@ -51,6 +54,17 @@
                 waveColor: '#ddd',
                 progressColor: '#999',
                 // the Minimap takes all the same options as the WaveSurfer itself
+              }),
+              Hover.create({
+                lineColor: '#ff0000',
+                lineWidth: 2,
+                labelBackground: '#555',
+                labelColor: '#fff',
+                labelSize: '11px',
+                labelPreferLeft: false,
+                formatTimeCallback: (seconds) =>
+                `${seconds.toFixed(2)}`
+
               }),
           ],
         })

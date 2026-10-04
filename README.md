@@ -58,7 +58,23 @@ python3 -m streaming_asr.server server --ssl
 The model itself expects a sample rate of 16000 Hz, silero vad downsamples to that, but if you create your smaples in
 another way be sure to account for that.
 
+## Aligned Viewer
 
+There's a viewer for the aligned files:
+```
+python3 -m aligned_viewer.server server /tmp/sdfdsf/
+```
+Directory expects mp3 files with their json files (same basename). Json files are produced with:
+```
+./main.py asr_aligned --force-vad --output-dir /tmp/sdfdsf/ /tmp/sdfdsf/*.mp3
+```
+
+
+
+## Notes
+
+Some issues reported upstream with timestamps, see <a href="https://github.com/QwenLM/Qwen3-ASR/issues/197">this</a> issue.
+There's a <a href="https://github.com/QwenLM/Qwen3-ASR/issues/197#issuecomment-5965450292">solution</a> proposed there that we may want to implement.
 
 
 ## License

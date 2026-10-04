@@ -12,6 +12,8 @@
             </div>
         </div>
         <button id="play_pause">play/pause</button>
+        <p>
+        </p>
 
         <script type="module">
         //import WaveSurfer from 'https://cdn.jsdelivr.net/npm/wavesurfer.js@8.0.0-beta.4/dist/wavesurfer.esm.js'
@@ -33,6 +35,9 @@
           progressColor: '#383351',
           url: audio_filename,
           minPxPerSec: 100,
+
+          // https://github.com/katspaugh/wavesurfer.js/issues/2738#issuecomment-3245624129
+          backend: "WebAudio",
           plugins: [regions,
               ZoomPlugin.create({
                 // the amount of zoom per wheel step, e.g. 0.5 means a 50% magnification per scroll

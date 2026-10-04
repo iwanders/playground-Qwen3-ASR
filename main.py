@@ -12,12 +12,15 @@ from qwen3_asr_support.pipeline import AlignedASR
 def run_asr_aligned(args):
     pipeline = AlignedASR(asr_model_id=args.asr_model, aligner_model_id=args.aligner_model, local_files_only=args.local_files_only, offload_immediately=args.reduce_memory)
     for f in args.files:
-        r =  pipeline.process(f, language=args.language, force_vad=args.force_vad, checkpoint_dir=args.checkpoint_dir)
-        print(r)
         output_dir : Path = args.output_dir if args.output_dir else f.parent
         output_filename = f.stem
         output_dir.mkdir(parents=True, exist_ok=True)
         output_dest = output_dir / f"{output_filename}.json"
+        if not args.overwrite and output_dest.exists():
+            print(f"skipping {output_dest}, file exists")
+            continue
+        r =  pipeline.process(f, language=args.language, force_vad=args.force_vad, checkpoint_dir=args.checkpoint_dir)
+        print(r)
         with open(output_dest, "w") as f:
             as_json = r.model_dump_json(indent=2)
             f.write(as_json)
@@ -30,12 +33,15 @@ def run_asr_scores(args):
         requested_tokens = [int(a.strip()) for a in args.requested_tokens.split(",") if a.strip()]
     
     for f in args.files:
-        r =  pipeline.asr_chunk_scores( f, requested_tokens=requested_tokens, language=args.language)
-        print(r)
         output_dir = args.output_dir if args.output_dir else f.parent
         output_dir.mkdir(parents=True, exist_ok=True)
         output_filename = f.stem
         output_dest = output_dir / f"{output_filename}.json"
+        if not args.overwrite and output_dest.exists():
+            print(f"skipping {output_dest}, file exists")
+            continue
+        r =  pipeline.asr_chunk_scores( f, requested_tokens=requested_tokens, language=args.language)
+        print(r)
         with open(output_dest, "w") as f:
             as_json = r.model_dump_json(indent=2)
             f.write(as_json)
@@ -80,6 +86,7 @@ if __name__ == "__main__":
     parser_run_asr_aligned.add_argument("--asr-model", type=str, help="The asr model to use %(default)s", default=asr_model_id)
     parser_run_asr_aligned.add_argument("--aligner-model", type=str, help="The aligner model to use %(default)s", default=aligner_model_id)
     parser_run_asr_aligned.add_argument("--force-vad", default=False, help="Force VAD to always run. %(default)s", action="store_true")
+    parser_run_asr_aligned.add_argument("--overwrite", default=False, help="Overwrite existing files instead of skipping them. %(default)s", action="store_true")
     parser_run_asr_aligned.add_argument("--checkpoint-dir", default=None, help="If set, use this directory to write checkpoints that can be resumed from. %(default)s", type=Path)
     parser_run_asr_aligned.add_argument("files",
         nargs='+',
@@ -98,6 +105,7 @@ if __name__ == "__main__":
     parser_run_asr_scores.add_argument("--reduce-memory", default=False, action="store_true")
     parser_run_asr_scores.add_argument("--asr-model", type=str, help="The asr model to use %(default)s", default=asr_model_id)
     parser_run_asr_scores.add_argument("--aligner-model", type=str, help="The aligner model to use %(default)s", default=aligner_model_id)
+    parser_run_asr_scores.add_argument("--overwrite", default=False, help="Overwrite existing files instead of skipping them. %(default)s", action="store_true")
     parser_run_asr_scores.add_argument("--language", type=str, default=None, help="Language to use for asr %(default)s")
     parser_run_asr_scores.add_argument("files",
         nargs='+',

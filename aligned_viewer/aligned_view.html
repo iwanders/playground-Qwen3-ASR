@@ -10,11 +10,14 @@
             <div id="waveform">
             <!-- the waveform will be rendered here -->
             </div>
+            Current time: <span id="display_timestamp"></span>
         </div>
         <button id="play_pause">play/pause</button>
         <p>
             Some issues reported upstream with timestamps, see <a href="https://github.com/QwenLM/Qwen3-ASR/issues/197">this</a> issue.
             There's a <a href="https://github.com/QwenLM/Qwen3-ASR/issues/197#issuecomment-5965450292">solution</a> proposed there that we may want to implement.
+
+            Spacebar toggles play/pause.
         </p>
 
         <script type="module">
@@ -31,6 +34,9 @@
         const audio_filename = "/serve_file/this_is_our_awesome_audio_filename.mp3";
         const aligned_filename = "/serve_file/this_is_the_aligned_file.json";
         document.title = audio_filename;
+
+        // Drag Selection: Create new regions by moving the cursor while holding left-click on the waveform
+        let dragSelection = undefined
 
         const wavesurfer = WaveSurfer.create({
           container: '#waveform',
@@ -69,6 +75,43 @@
           ],
         })
 
+        dragSelection = regions.enableDragSelection({
+          color: 'rgba(255, 0, 0, 0.1)',
+        })
+
+
+        {
+          let activeRegion = null
+          regions.on('region-in', (region) => {
+            console.log('region-in', region);
+            //activeRegion = region
+          })
+          regions.on('region-out', (region) => {
+            console.log('region-out', region);
+            console.log('region-out active ', activeRegion);
+            if (activeRegion === region ) {
+                activeRegion = null;
+            }
+          })
+          regions.on('region-clicked', (region, e) => {
+            e.stopPropagation() // prevent triggering a click on the waveform
+            activeRegion = region;
+            region.play(true);
+            region.setOptions({ color: randomColor() });
+          })
+          // Reset the active region when the user clicks anywhere in the waveform
+          wavesurfer.on('interaction', () => {
+            activeRegion = null;
+          })
+          /** When the audio pauses */
+          wavesurfer.on('pause', () => {
+              if (activeRegion !== null && wavesurfer.getCurrentTime() >= activeRegion.end){
+                  activeRegion = null;
+              }
+          })
+
+        }
+
         // wavesurfer.on('interaction', () => {
         //   wavesurfer.play()
         // })
@@ -76,13 +119,27 @@
           wavesurfer.playPause()
         })
 
+        /** On audio position change, fires continuously during playback */
+        wavesurfer.on('timeupdate', (currentTime) => {
+            document.querySelector('#display_timestamp').innerHTML = `${currentTime.toFixed(2)}`;
+
+        })
+
+        /** On audio position change, fires continuously during playback */
+        regions.on('region-created', (region) => {
+            if (!region.id.startsWith("fragment-") && !region.id.startsWith("segment-") ){
+                console.log("region created", region);
+            }
+        })
+
         // Give regions a random color when they are created
         const random = (min, max) => Math.random() * (max - min) + min
         const randomColor = () => `rgba(${random(0, 255)}, ${random(0, 255)}, ${random(0, 255)}, 0.5)`
 
         function add_regions(data) {
+            let segment_index = 0;
             for (let frag of data.fragments){
-                console.log(frag);
+                //console.log(frag);
                 regions.addRegion({
                   start: frag.start_time,
                   end: frag.end_time,
@@ -90,7 +147,9 @@
                   color: randomColor(),
                   drag: false,
                   resize: false,
+                  id: `fragment-${segment_index}`,
                 });
+                segment_index++;
             }
             for (let i = 0; i < data.chunks.length; i++) {
 
@@ -98,6 +157,7 @@
                 regions.addRegion({
                   start: data.chunks[i].fragments[0].start_time,
                   content: `Segment ${i}`,
+                  id: `segment-${i}`,
                   color: randomColor(),
                 })
             }
@@ -137,6 +197,22 @@
           // From old docs at https://wavesurfer.xyz/plugins/regions
           // addRegion(options) – Creates a region on the waveform. Returns a Region object. See Region Options, Region Methods and Region Events below. Note: You cannot add regions until the audio has finished loading, otherwise the start: and end: properties of the new region will be set to 0, or an unexpected value.
           retrieve_asr();
+        });
+
+
+
+        window.addEventListener('keydown', function(event) {
+          // Check if the pressed key is the spacebar
+          if (event.key === ' ' || event.code === 'Space') {
+            // Prevent the default browser action (like scrolling down the page)
+            event.preventDefault();
+
+            // Find your specific button by its ID and click it
+            const myButton = document.getElementById('play_pause');
+            if (myButton) {
+              myButton.click();
+            }
+          }
         });
         </script>
     </body>

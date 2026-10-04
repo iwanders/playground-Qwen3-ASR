@@ -78,6 +78,15 @@
                   resize: false,
                 });
             }
+            for (let i = 0; i < data.chunks.length; i++) {
+
+                // Markers (zero-length regions)
+                regions.addRegion({
+                  start: data.chunks[i].fragments[0].start_time,
+                  content: `Segment ${i}`,
+                  color: randomColor(),
+                })
+            }
         }
 
         async function retrieve_asr() {

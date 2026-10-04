@@ -14,8 +14,9 @@ def run_asr_aligned(args):
     for f in args.files:
         r =  pipeline.process(f, language=args.language, force_vad=args.force_vad, checkpoint_dir=args.checkpoint_dir)
         print(r)
-        output_dir = args.output_dir if args.output_dir else f.parent
+        output_dir : Path = args.output_dir if args.output_dir else f.parent
         output_filename = f.stem
+        output_dir.mkdir(parents=True, exist_ok=True)
         output_dest = output_dir / f"{output_filename}.json"
         with open(output_dest, "w") as f:
             as_json = r.model_dump_json(indent=2)
@@ -32,6 +33,7 @@ def run_asr_scores(args):
         r =  pipeline.asr_chunk_scores( f, requested_tokens=requested_tokens, language=args.language)
         print(r)
         output_dir = args.output_dir if args.output_dir else f.parent
+        output_dir.mkdir(parents=True, exist_ok=True)
         output_filename = f.stem
         output_dest = output_dir / f"{output_filename}.json"
         with open(output_dest, "w") as f:

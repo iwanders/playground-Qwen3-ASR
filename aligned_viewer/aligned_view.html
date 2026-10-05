@@ -128,8 +128,9 @@
 
         // Segment: region -> {tokens: []}.
         let audio_segments = new Map();
-
         let asr_data = null;
+        // const allRegions = regions.getRegions();
+        // console.log(allRegions); // Returns an array of Region objects
 
         function update_segment(region, entry) {
             if (asr_data === null){
@@ -142,6 +143,9 @@
                 }
             }
             entry.tokens = tokens;
+        }
+        function region_is_custom(region) {
+            return !region.id.startsWith("fragment-") && !region.id.startsWith("segment-") ;
         }
 
         function update_segment_display(){
@@ -162,16 +166,22 @@
 
         /** On audio position change, fires continuously during playback */
         regions.on('region-created', (region) => {
-            if (!region.id.startsWith("fragment-") && !region.id.startsWith("segment-") ){
-                console.log("region created", region);
-                audio_segments.set(region, {});
-                update_segment(region, audio_segments.get(region));
-
-                update_segment_display();
-                const allRegions = regions.getRegions();
-                console.log(allRegions); // Returns an array of Region objects
+            if (!region_is_custom(region)){
+                return;
             }
+            console.log("region created", region);
+            audio_segments.set(region, {});
+            update_segment(region, audio_segments.get(region));
+
+            update_segment_display();
         })
+        regions.on('region-updated',(region, update_side) => {
+            if (!region_is_custom(region)){
+                return;
+            }
+            update_segment(region, audio_segments.get(region));
+            update_segment_display();
+        });
 
         // Give regions a random color when they are created
         const random = (min, max) => Math.random() * (max - min) + min

@@ -19,6 +19,9 @@
 
             Spacebar toggles play/pause.
         </p>
+        <div id="relevant_segments">
+
+        </div>
 
         <script type="module">
         //import WaveSurfer from 'https://cdn.jsdelivr.net/npm/wavesurfer.js@8.0.0-beta.4/dist/wavesurfer.esm.js'
@@ -50,7 +53,7 @@
           plugins: [regions,
               ZoomPlugin.create({
                 // the amount of zoom per wheel step, e.g. 0.5 means a 50% magnification per scroll
-                scale: 0.5,
+                scale: 0.25,
                 // Optionally, specify the maximum pixels-per-second factor while zooming
                 maxZoom: 100,
               }),
@@ -112,9 +115,6 @@
 
         }
 
-        // wavesurfer.on('interaction', () => {
-        //   wavesurfer.play()
-        // })
         document.querySelector('#play_pause').addEventListener('click', () => {
           wavesurfer.playPause()
         })
@@ -125,10 +125,51 @@
 
         })
 
+
+        // Segment: region -> {tokens: []}.
+        let audio_segments = new Map();
+
+        let asr_data = null;
+
+        function update_segment(region, entry) {
+            if (asr_data === null){
+                return;
+            }
+            let tokens = [];
+            for (let i = 0; i < asr_data.fragments.length; i++) {
+                if (asr_data.fragments[i].start_time > region.start && asr_data.fragments[i].end_time <= region.end) {
+                    tokens.push(asr_data.fragments[i].text);
+                }
+            }
+            entry.tokens = tokens;
+        }
+
+        function update_segment_display(){
+            // relevant_segments
+            let new_segment_elements = []
+            audio_segments.forEach((v, k) => {
+                const newPara = document.createElement("div");
+
+                // 2. Configure it (add text, classes, and IDs)
+                console.log(k,v);
+                newPara.textContent = `Span from ${k.start.toFixed(2)} to ${k.end.toFixed(2)} containing ${v.tokens} `;
+                newPara.classList.add("supercool");
+                newPara.id = `fragment-span-${k.id}`;
+                new_segment_elements.push(newPara);
+            });
+            document.getElementById("relevant_segments").replaceChildren(...new_segment_elements);
+        }
+
         /** On audio position change, fires continuously during playback */
         regions.on('region-created', (region) => {
             if (!region.id.startsWith("fragment-") && !region.id.startsWith("segment-") ){
                 console.log("region created", region);
+                audio_segments.set(region, {});
+                update_segment(region, audio_segments.get(region));
+
+                update_segment_display();
+                const allRegions = regions.getRegions();
+                console.log(allRegions); // Returns an array of Region objects
             }
         })
 
@@ -137,6 +178,7 @@
         const randomColor = () => `rgba(${random(0, 255)}, ${random(0, 255)}, ${random(0, 255)}, 0.5)`
 
         function add_regions(data) {
+            asr_data = data;
             let segment_index = 0;
             for (let frag of data.fragments){
                 //console.log(frag);

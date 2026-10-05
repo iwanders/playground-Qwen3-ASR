@@ -12,13 +12,13 @@
             </div>
             Current time: <span id="display_timestamp"></span>
         </div>
-        <button id="play_pause">play/pause</button>
-        <p>
+        <button id="play_pause">(space) play/pause</button>
+        <!--<p>
             Some issues reported upstream with timestamps, see <a href="https://github.com/QwenLM/Qwen3-ASR/issues/197">this</a> issue.
             There's a <a href="https://github.com/QwenLM/Qwen3-ASR/issues/197#issuecomment-5965450292">solution</a> proposed there that we may want to implement.
 
             Spacebar toggles play/pause.
-        </p>
+            </p>-->
         <div id="relevant_segments">
 
         </div>
@@ -33,6 +33,9 @@
 
         // Initialize the Regions plugin
         const regions = RegionsPlugin.create()
+
+        const DECIMAL_RESOLUTION = 2;
+        const DR = DECIMAL_RESOLUTION;
 
         const audio_filename = "/serve_file/this_is_our_awesome_audio_filename.mp3";
         const aligned_filename = "/serve_file/this_is_the_aligned_file.json";
@@ -100,7 +103,7 @@
             e.stopPropagation() // prevent triggering a click on the waveform
             activeRegion = region;
             region.play(true);
-            region.setOptions({ color: randomColor() });
+            //region.setOptions({ color: randomColor() });
           })
           // Reset the active region when the user clicks anywhere in the waveform
           wavesurfer.on('interaction', () => {
@@ -121,7 +124,7 @@
 
         /** On audio position change, fires continuously during playback */
         wavesurfer.on('timeupdate', (currentTime) => {
-            document.querySelector('#display_timestamp').innerHTML = `${currentTime.toFixed(2)}`;
+            document.querySelector('#display_timestamp').innerHTML = `${currentTime.toFixed(DR)}`;
 
         })
 
@@ -156,7 +159,7 @@
 
                 // 2. Configure it (add text, classes, and IDs)
                 console.log(k,v);
-                newPara.textContent = `Span from ${k.start.toFixed(2)} to ${k.end.toFixed(2)} containing ${v.tokens} `;
+                newPara.textContent = `Span from ${k.start.toFixed(DR)} to ${k.end.toFixed(DR)} containing ${v.tokens} `;
                 newPara.classList.add("supercool");
                 newPara.id = `fragment-span-${k.id}`;
                 new_segment_elements.push(newPara);
@@ -190,18 +193,21 @@
         function add_regions(data) {
             asr_data = data;
             let segment_index = 0;
-            for (let frag of data.fragments){
+            const COLOR_MAP = ['rgba(224, 224, 224, 0.5)', 'rgba(180, 180, 180, 0.5)'];
+            for (let segment_index = 0; segment_index < data.fragments.length; segment_index++){
+                let frag =  data.fragments[segment_index];
+            // for (let frag of data.fragments){
                 //console.log(frag);
                 regions.addRegion({
                   start: frag.start_time,
                   end: frag.end_time,
                   content: frag.text,
-                  color: randomColor(),
+                  // color: randomColor(),
+                  color: COLOR_MAP[segment_index % 2],
                   drag: false,
                   resize: false,
                   id: `fragment-${segment_index}`,
                 });
-                segment_index++;
             }
             for (let i = 0; i < data.chunks.length; i++) {
 

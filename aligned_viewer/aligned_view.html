@@ -10,9 +10,9 @@
             <div id="waveform">
             <!-- the waveform will be rendered here -->
             </div>
-            Current time: <span id="display_timestamp"></span>
+            <button id="play_pause">(space) play/pause</button>Current time: <span id="display_timestamp"></span>
         </div>
-        <button id="play_pause">(space) play/pause</button>
+
         <!--<p>
             Some issues reported upstream with timestamps, see <a href="https://github.com/QwenLM/Qwen3-ASR/issues/197">this</a> issue.
             There's a <a href="https://github.com/QwenLM/Qwen3-ASR/issues/197#issuecomment-5965450292">solution</a> proposed there that we may want to implement.
@@ -155,13 +155,26 @@
             // relevant_segments
             let new_segment_elements = []
             audio_segments.forEach((v, k) => {
-                const newPara = document.createElement("div");
-
                 // 2. Configure it (add text, classes, and IDs)
                 console.log(k,v);
+                const play_button = document.createElement("button");
+                play_button.textContent = "play";
+                play_button.addEventListener("click",   () => {
+                    k.play(true);
+                });
+                const delete_button = document.createElement("button");
+                delete_button.textContent = "del";
+                delete_button.addEventListener("click",   () => {
+                    k.remove();
+                    audio_segments.delete(k);
+                    update_segment_display();
+                });
+                const newPara = document.createElement("div");
                 newPara.textContent = `Span from ${k.start.toFixed(DR)} to ${k.end.toFixed(DR)} containing ${v.tokens} `;
                 newPara.classList.add("supercool");
                 newPara.id = `fragment-span-${k.id}`;
+                newPara.prepend(play_button);
+                newPara.appendChild(delete_button);
                 new_segment_elements.push(newPara);
             });
             document.getElementById("relevant_segments").replaceChildren(...new_segment_elements);

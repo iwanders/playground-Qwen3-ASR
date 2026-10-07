@@ -43,6 +43,22 @@
             max-width: 90%;
           }
         }
+
+
+        /* Define the flash animation */
+        @keyframes flash-bg {
+          0% {
+            background-color: #ff3b3b; /* The flash color (e.g., bright yellow) */
+          }
+          100% {
+            background-color: transparent; /* Fades back to the original background */
+          }
+        }
+
+        /* The class that gets added during the event */
+        .animate-flash {
+          animation: flash-bg 1.8s ease-out; /* Adjust 0.8s to change flash duration */
+        }
         </style>
         <div id="audio_section">
             <div id="waveform">
@@ -142,6 +158,20 @@
             activeRegion = region;
             region.play(true);
             //region.setOptions({ color: randomColor() });
+
+
+            let el = document.getElementById(`fragment-span-${region.id}`);
+            if (el !== undefined){
+                // Add the class to trigger the animation
+                el.classList.add('animate-flash');
+
+                // Remove the class after the animation finishes so it can flash again next click
+                el.addEventListener('animationend', () => {
+                el.classList.remove('animate-flash');
+                }, { once: true }); // { once: true } ensures the listener cleans itself up
+
+            }
+
           })
           // Reset the active region when the user clicks anywhere in the waveform
           wavesurfer.on('interaction', () => {
@@ -169,6 +199,7 @@
 
         // Segment: region -> {tokens: []}.
         let audio_segments = new Map();
+        let extra_cols = [];
         let asr_data = null;
         // const allRegions = regions.getRegions();
         // console.log(allRegions); // Returns an array of Region objects
@@ -190,9 +221,22 @@
         }
 
         function update_segment_display(){
-            // relevant_segments
+            // Relevant_segments
             let new_segment_elements = []
+            const table_heading = document.createElement("tr");
+            let build_in_cols = ['', 'start', 'end', 'tokens', ''];
+
+            for (let v of build_in_cols){
+                const col0 = document.createElement("th");
+                col0.textContent =  v;
+                table_heading.appendChild(col0);
+            }
+
+            new_segment_elements.push(table_heading);
             audio_segments.forEach((v, k) => {
+                const newPara = document.createElement("tr");
+                newPara.id = `fragment-span-${k.id}`;
+
                 // 2. Configure it (add text, classes, and IDs)
                 console.log(k,v);
                 const play_td = document.createElement("td");
@@ -201,6 +245,26 @@
                 play_button.addEventListener("click",   () => {
                     k.play(true);
                 });
+                play_td.append(play_button);
+                newPara.prepend(play_td);
+
+
+                // start
+
+                const start_td = document.createElement("td");
+                start_td.textContent = `${k.start.toFixed(DR)}`;
+                newPara.appendChild(start_td);
+                // end
+                const end_td = document.createElement("td");
+                end_td.textContent = `${k.end.toFixed(DR)}`;
+                newPara.appendChild(end_td);
+
+                // tokens.
+                //
+                const body_td = document.createElement("td");
+                body_td.textContent = `${v.tokens}`;
+                newPara.appendChild(body_td);
+
                 const delete_td = document.createElement("td");
                 const delete_button = document.createElement("button");
                 delete_button.textContent = "del";
@@ -209,16 +273,10 @@
                     audio_segments.delete(k);
                     update_segment_display();
                 });
-                const body_td = document.createElement("td");
-                body_td.textContent = `Span from ${k.start.toFixed(DR)} to ${k.end.toFixed(DR)} containing ${v.tokens} `;
-                body_td.classList.add("supercool");
-                body_td.id = `fragment-span-${k.id}`;
-
-                const newPara = document.createElement("tr");
-                play_td.append(play_button);
-                newPara.prepend(play_td);
                 delete_td.append(delete_button);
-                newPara.appendChild(body_td);
+
+
+
                 newPara.appendChild(delete_td);
                 new_segment_elements.push(newPara);
             });

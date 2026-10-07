@@ -38,12 +38,25 @@
           border-bottom: none;
         }
 
+        .modern-table tr:nth-child(even) {
+          background-color: #f9f9f9;
+        }
+
         @media (max-width: 768px) {
           .centeredtable {
             max-width: 90%;
           }
         }
 
+        td.buttoncol,
+        th.buttoncol {
+          width: 5em;
+        }
+
+        td.timecol,
+        th.timecol {
+          width: 5em;
+        }
 
         /* Define the flash animation */
         @keyframes flash-bg {
@@ -167,7 +180,7 @@
 
                 // Remove the class after the animation finishes so it can flash again next click
                 el.addEventListener('animationend', () => {
-                el.classList.remove('animate-flash');
+                    el.classList.remove('animate-flash');
                 }, { once: true }); // { once: true } ensures the listener cleans itself up
 
             }
@@ -228,6 +241,11 @@
 
             for (let v of build_in_cols){
                 const col0 = document.createElement("th");
+                if (v == "start" || v == "end") {
+                    col0.classList.add("timecol");
+                } else if (v == ''){
+                    col0.classList.add("buttoncol");
+                }
                 col0.textContent =  v;
                 table_heading.appendChild(col0);
             }
@@ -240,6 +258,7 @@
                 // 2. Configure it (add text, classes, and IDs)
                 console.log(k,v);
                 const play_td = document.createElement("td");
+                play_td.classList.add("buttoncol");
                 const play_button = document.createElement("button");
                 play_button.textContent = "play";
                 play_button.addEventListener("click",   () => {
@@ -253,9 +272,11 @@
 
                 const start_td = document.createElement("td");
                 start_td.textContent = `${k.start.toFixed(DR)}`;
+                start_td.classList.add("timecol");
                 newPara.appendChild(start_td);
                 // end
                 const end_td = document.createElement("td");
+                end_td.classList.add("timecol");
                 end_td.textContent = `${k.end.toFixed(DR)}`;
                 newPara.appendChild(end_td);
 
@@ -266,6 +287,7 @@
                 newPara.appendChild(body_td);
 
                 const delete_td = document.createElement("td");
+                delete_td.classList.add("buttoncol");
                 const delete_button = document.createElement("button");
                 delete_button.textContent = "del";
                 delete_button.addEventListener("click",   () => {

@@ -77,7 +77,7 @@
             <div id="waveform">
             <!-- the waveform will be rendered here -->
             </div>
-            <button id="play_pause">(space) play/pause</button>Current time: <span id="display_timestamp"></span>
+            <button id="play_pause">(space) play/pause</button>Current time: <span id="display_timestamp"></span> tokens as list: <input type="checkbox" id="option-token-list" value="no">  joined token delimiter: <input type="text" id="option-token-delimiter" value=" ">
         </div>
 
         <!--<p>
@@ -251,6 +251,12 @@
             }
 
             new_segment_elements.push(table_heading);
+
+
+            let token_list = document.getElementById('option-token-list').checked;
+            let token_delim = document.getElementById('option-token-delimiter').value;
+            console.log(token_list, token_delim);
+
             audio_segments.forEach((v, k) => {
                 const newPara = document.createElement("tr");
                 newPara.id = `fragment-span-${k.id}`;
@@ -283,7 +289,16 @@
                 // tokens.
                 //
                 const body_td = document.createElement("td");
-                body_td.textContent = `${v.tokens}`;
+                let token_display_str = '';
+                if (token_list) {
+                    token_display_str  += "[";
+                    token_display_str +=  v.tokens.forEach((z) => `"${z}"`).join(', ');
+
+                    token_display_str  += "]";
+                } else {
+                    token_display_str = v.tokens.join(token_delim);
+                };
+                body_td.textContent = token_display_str;
                 newPara.appendChild(body_td);
 
                 const delete_td = document.createElement("td");
@@ -401,7 +416,7 @@
           // Check if the pressed key is the spacebar
           if (event.key === ' ' || event.code === 'Space') {
             // Prevent the default browser action (like scrolling down the page)
-            event.preventDefault();
+            //event.preventDefault();
 
             // Find your specific button by its ID and click it
             const myButton = document.getElementById('play_pause');

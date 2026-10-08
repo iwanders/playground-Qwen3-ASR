@@ -77,7 +77,11 @@
             <div id="waveform">
             <!-- the waveform will be rendered here -->
             </div>
-            <button id="play_pause">(space) play/pause</button>Current time: <span id="display_timestamp"></span> tokens as list: <input type="checkbox" id="option-token-list" value="no">  joined token delimiter: <input type="text" id="option-token-delimiter" value=" ">
+            <button id="play_pause">(space) play/pause</button>Current time: <span id="display_timestamp"></span>
+            tokens as list: <input type="checkbox" id="option-token-list" value="no">
+            joined token delimiter: <input type="text" id="option-token-delimiter" value=" ">
+            <button id="button_copy_yaml">YAML</button>
+
         </div>
 
         <!--<p>
@@ -233,6 +237,22 @@
             return !region.id.startsWith("fragment-") && !region.id.startsWith("segment-") ;
         }
 
+        function format_tokens(tokens){
+            let token_display_str = '';
+            let token_list = document.getElementById('option-token-list').checked;
+            let token_delim = document.getElementById('option-token-delimiter').value;
+            console.log(token_list, token_delim);
+            if (token_list) {
+                token_display_str  += "[";
+                token_display_str +=  tokens.forEach((z) => `"${z}"`).join(', ');
+
+                token_display_str  += "]";
+            } else {
+                token_display_str = '"' + tokens.join(token_delim) + '"';
+            };
+            return token_display_str;
+        }
+
         function update_segment_display(){
             // Relevant_segments
             let new_segment_elements = []
@@ -252,10 +272,6 @@
 
             new_segment_elements.push(table_heading);
 
-
-            let token_list = document.getElementById('option-token-list').checked;
-            let token_delim = document.getElementById('option-token-delimiter').value;
-            console.log(token_list, token_delim);
 
             audio_segments.forEach((v, k) => {
                 const newPara = document.createElement("tr");
@@ -287,17 +303,9 @@
                 newPara.appendChild(end_td);
 
                 // tokens.
-                //
                 const body_td = document.createElement("td");
-                let token_display_str = '';
-                if (token_list) {
-                    token_display_str  += "[";
-                    token_display_str +=  v.tokens.forEach((z) => `"${z}"`).join(', ');
+                let token_display_str = format_tokens(v.tokens);
 
-                    token_display_str  += "]";
-                } else {
-                    token_display_str = v.tokens.join(token_delim);
-                };
                 body_td.textContent = token_display_str;
                 newPara.appendChild(body_td);
 
@@ -319,6 +327,24 @@
             });
             document.getElementById("relevant_segments").replaceChildren(...new_segment_elements);
         }
+
+        document.getElementById('button_copy_yaml').addEventListener('click', async () => {
+
+
+          try {
+            let yaml_text = ''
+            audio_segments.forEach((v, k) => {
+                let start_str = `${k.start.toFixed(DR)}`;
+                let end_str = `${k.end.toFixed(DR)}`;
+                let tokens = format_tokens(v.tokens);
+                yaml_text += `- { start: ${start_str}, end: ${end_str}, tokens: ${tokens}}\n`;
+            });
+
+            await navigator.clipboard.writeText(yaml_text);
+          } catch (err) {
+            console.error('Failed to copy buffer: ', err);
+          }
+        });
 
         /** On audio position change, fires continuously during playback */
         regions.on('region-created', (region) => {
@@ -415,6 +441,12 @@
         window.addEventListener('keydown', function(event) {
           // Check if the pressed key is the spacebar
           if (event.key === ' ' || event.code === 'Space') {
+            const el = document.activeElement;
+
+            if (el && el.tagName === 'INPUT' && el.type === 'text') {
+                console.log('A text input is currently focused.');
+                return;
+            }
             // Prevent the default browser action (like scrolling down the page)
             //event.preventDefault();
 

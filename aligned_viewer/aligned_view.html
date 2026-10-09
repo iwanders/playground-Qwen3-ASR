@@ -497,6 +497,18 @@
         });
 
 
+        // Add shift+scroll to pan.
+        // https://github.com/katspaugh/wavesurfer.js/issues/3389#issuecomment-2053811603
+        const horizontalScrolling = e => {
+            console.log(e);
+            if (e.shiftKey) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.target.closest('.scroll').scrollLeft -= e.deltaY;
+            }
+        };
+        const wavesurferWrapper = wavesurfer.getWrapper();
+        wavesurferWrapper.addEventListener('wheel', horizontalScrolling, true);
 
         window.addEventListener('keydown', function(event) {
           // Check if the pressed key is the spacebar

@@ -288,7 +288,7 @@ class AlignedASR:
         wav = fragment_to_waveform(audio_url)
         sha_hash = hashlib.sha256(wav.tobytes()).hexdigest()
 
-        print("total shape: ", wav.shape)
+        #print("total shape: ", wav.shape)
     
         # Segment wav exceeding 3 minutes
         if len(wav) / WAV_SAMPLE_RATE >= 120 and self._chunk or force_vad:
@@ -297,10 +297,11 @@ class AlignedASR:
         else:
             wav_list = [(0, len(wav), wav)]
 
-        for i, z in enumerate(wav_list):
-            a = AudioObject(z[2], WAV_SAMPLE_RATE)
-            a.save(f"/tmp/wav_{i:0>3}.mp3")
-            print(z[0], z[1], type(z[2]))
+        if False:
+            for i, z in enumerate(wav_list):
+                a = AudioObject(z[2], WAV_SAMPLE_RATE)
+                a.save(f"/tmp/wav_{i:0>3}.mp3")
+                print(z[0], z[1], type(z[2]))
             
         if label is None and isinstance(audio_url, Path):
             label = audio_url.stem
@@ -324,7 +325,7 @@ class AlignedASR:
         for windex in range(len(wav_list)):
             logger.debug(f"Processing chunk {windex} / {len(wav_list)}")
             start_sample, end_sample, payload = wav_list[windex]
-            print("start_sample", start_sample, "end_sample", end_sample)
+            #print("start_sample", start_sample, "end_sample", end_sample)
             c = self.asr_chunk(payload, time_shift = start_sample / WAV_SAMPLE_RATE, language=language)
             result.fragments.extend(c.fragments)
             if not c.language in result.language:

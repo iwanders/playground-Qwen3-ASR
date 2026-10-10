@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 
 import numpy as np
+import soundfile as sf
 import torch
 from qwen3_asr_toolkit.audio_tools import WAV_SAMPLE_RATE, load_audio, process_vad
 from silero_vad import load_silero_vad
@@ -46,6 +47,69 @@ def fragment_to_waveform(a):
     else:
         raise TypeError(f"Unsupported type for audio {type(a)}")
         
+
+
+class AudioObject:
+    def __init__(self, waveform, sample_rate):
+        self._waveform = waveform
+        self._sample_rate = sample_rate
+
+    @staticmethod
+    def quiet_from(base: "AudioObject", duration: float):
+        sample_rate = base.get_sample_rate()
+        samples = int(duration * sample_rate)
+        dtype = base._waveform.dtype
+        waveform = np.zeros((samples,), dtype=dtype)
+        return AudioObject(waveform, sample_rate)
+
+    def save(self, path: Path, metadata: dict[str, str] = {}):
+        path = Path(path)
+        path.parent.mkdir(exist_ok=True, parents=True)
+
+        # https://github.com/bastibe/python-soundfile/issues/294#issuecomment-971324753
+        metadata_keys = {
+            "title",
+            "copyright",
+            "software",
+            "artist",
+            "comment",
+            "date",
+            "album",
+            "license",
+            "tracknumber",
+            "genre",
+        }
+        with sf.SoundFile(path, "w", samplerate=self._sample_rate, channels=1) as file:
+            file.write(self._waveform)
+            for k, v in metadata.items():
+                if k not in metadata_keys:
+                    raise KeyError("unsupported metadata key for this file format")
+                # workaround from https://github.com/bastibe/python-soundfile/issues/294#issuecomment-975768080
+                file.__setattr__(k, v)
+
+    def concat(self, other):
+        if other._sample_rate != self._sample_rate:
+            raise ValueError(
+                f"Got two sample rates for concat {self._sample_rate} and {other._sample_rate}"
+            )
+        data = np.hstack([self._waveform, other._waveform])
+        return AudioObject(data, self._sample_rate)
+
+    def get_sample_rate(self):
+        return self._sample_rate
+
+    def audio_length(self):
+        return (1.0 / self._sample_rate) * len(self._waveform)
+
+    @staticmethod
+    def from_list(z: "list[AudioObject]", inter_chunk_duration=0.0):
+        data = z[0]
+        for more_data in z[1:]:
+            if inter_chunk_duration != 0.0:
+                data = data.concat(AudioObject.quiet_from(data, inter_chunk_duration))
+            data = data.concat(more_data)
+
+        return data
 
 class AlignedASR:
     def __init__(self,
@@ -113,7 +177,7 @@ class AlignedASR:
 
         if self._chunk:
             self._worker_vad_model = load_silero_vad(onnx=False)
-            self._vad_segment_threshold = 120
+            self._vad_segment_threshold = 100
             #wav_list = process_vad(wav, self._worker_vad_model, segment_threshold_s=_vad_segment_threshold)
 
 
@@ -224,13 +288,20 @@ class AlignedASR:
         wav = fragment_to_waveform(audio_url)
         sha_hash = hashlib.sha256(wav.tobytes()).hexdigest()
 
+        print("total shape: ", wav.shape)
     
         # Segment wav exceeding 3 minutes
-        if len(wav) / WAV_SAMPLE_RATE >= 180 and self._chunk or force_vad:
+        if len(wav) / WAV_SAMPLE_RATE >= 120 and self._chunk or force_vad:
+            # I think there's a bug here where this results in segments that don't actually contain the entire audio fragment?
             wav_list = process_vad(wav, self._worker_vad_model, segment_threshold_s=self._vad_segment_threshold)
         else:
             wav_list = [(0, len(wav), wav)]
 
+        for i, z in enumerate(wav_list):
+            a = AudioObject(z[2], WAV_SAMPLE_RATE)
+            a.save(f"/tmp/wav_{i:0>3}.mp3")
+            print(z[0], z[1], type(z[2]))
+            
         if label is None and isinstance(audio_url, Path):
             label = audio_url.stem
 
@@ -250,9 +321,10 @@ class AlignedASR:
                 logger.debug(f"Wrote {filepath} with {len(result.chunks)} chunks")
             
 
-        for windex in range(len(result.chunks), len(wav_list)):
+        for windex in range(len(wav_list)):
             logger.debug(f"Processing chunk {windex} / {len(wav_list)}")
             start_sample, end_sample, payload = wav_list[windex]
+            print("start_sample", start_sample, "end_sample", end_sample)
             c = self.asr_chunk(payload, time_shift = start_sample / WAV_SAMPLE_RATE, language=language)
             result.fragments.extend(c.fragments)
             if not c.language in result.language:

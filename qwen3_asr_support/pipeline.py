@@ -217,7 +217,7 @@ class AlignedASR:
         inputs = self.asr_processor.apply_transcription_request(audio=audio_fragment, language=language)
         inputs = inputs.to(self.asr_model.device, self.asr_model.dtype)
         with torch.inference_mode():
-            output_ids = self.asr_model.generate(**inputs, max_new_tokens=256)
+            output_ids = self.asr_model.generate(**inputs, max_new_tokens=256*2)
         generated_ids = output_ids[:, inputs["input_ids"].shape[1]:]
         parsed = self.asr_processor.decode(generated_ids, return_format="parsed")[0]
         transcript = parsed["transcription"]
